@@ -19,3 +19,10 @@ libraryPaths: [];
 defines: [
     "VERSION=\"1.3.0\"";
 ];
+preBuild: [];
+postBuild: [];
+macroPrefix: "-D";
+libraryPrefix: "-l";
+libraryPathPrefix: "-L";
+includePrefix: "-I";
+outFilePrefix: "-o";

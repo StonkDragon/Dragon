@@ -21,6 +21,7 @@ These Languages are known to work:
 - C
 - C++
 - [Scale](https://www.github.com/StonkDragon/Scale)
+- Kotlin (experimental)
 
 ## License
 

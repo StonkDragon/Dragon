@@ -1,0 +1,6 @@
+make: Entering directory `/Users/paul/Coding/Dragon'
+mkdir -p build
+clang++ -Wall -Wextra -Werror -pedantic src/dragon.cpp -o build/dragon
+./build/dragon
+make: Leaving directory `/Users/paul/Coding/Dragon'
+ 

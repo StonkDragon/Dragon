@@ -11,6 +11,8 @@
 #define VERSION "0.0.0"
 #endif
 
+#define DRAGON_UNSUPPORTED_STR "<DRAGON_UNSUPPORTED>"
+
 namespace Dragon
 {
     struct Build {
@@ -18,11 +20,18 @@ namespace Dragon
         std::string target;
         std::string outputDir;
         std::string sourceDir;
+        std::string macroPrefix;
+        std::string libraryPrefix;
+        std::string libraryPathPrefix;
+        std::string includePrefix;
+        std::string outFilePrefix;
         std::vector<std::string> units;
         std::vector<std::string> flags;
         std::vector<std::string> includes;
         std::vector<std::string> libs;
         std::vector<std::string> libraryPaths;
+        std::vector<std::string> preBuild;
+        std::vector<std::string> postBuild;
     };
 
     struct Config {
@@ -101,6 +110,15 @@ namespace Dragon
                         for (auto& value : values) {
                             build.libraryPaths.push_back(value);
                         }
+                    } else if (key == "preBuild") {
+                        for (auto& value : values) {
+                            build.preBuild.push_back(value);
+                        }
+                    } else if (key == "postBuild") {
+                        for (auto& value : values) {
+                            build.postBuild.push_back(value);
+                        }
+                        
                     } else if (key == "compiler") {
                         build.compiler = values.at(0);
                     } else if (key == "target") {
@@ -109,6 +127,16 @@ namespace Dragon
                         build.outputDir = values.at(0);
                     } else if (key == "sourceDir") {
                         build.sourceDir = values.at(0);
+                    } else if (key == "macroPrefix") {
+                        build.macroPrefix = values.at(0);
+                    } else if (key == "libraryPrefix") {
+                        build.libraryPrefix = values.at(0);
+                    } else if (key == "libraryPathPrefix") {
+                        build.libraryPathPrefix = values.at(0);
+                    } else if (key == "includePrefix") {
+                        build.includePrefix = values.at(0);
+                    } else if (key == "outFilePrefix") {
+                        build.outFilePrefix = values.at(0);
                     } else {
                         std::cerr << "[Dragon] " << "Unknown list: " << key << std::endl;
                         exit(1);
@@ -129,6 +157,16 @@ namespace Dragon
                         build.target = value;
                     } else if (key == "sourceDir") {
                         build.sourceDir = value;
+                    } else if (key == "macroPrefix") {
+                        build.macroPrefix = value;
+                    } else if (key == "libraryPrefix") {
+                        build.libraryPrefix = value;
+                    } else if (key == "libraryPathPrefix") {
+                        build.libraryPathPrefix = value;
+                    } else if (key == "includePrefix") {
+                        build.includePrefix = value;
+                    } else if (key == "outFilePrefix") {
+                        build.outFilePrefix = value;
                     } else {
                         std::cerr << "[Dragon] " << "Unknown key: " << key << std::endl;
                         exit(1);
@@ -152,38 +190,61 @@ void usage(std::string progName, std::__1::ostream& sink) {
     sink << "  build     Build the project" << std::endl;
     sink << "  run       Compile and run the project" << std::endl;
     sink << "  init      Initialize a new project. init allows overriding of default values for faster configuration" << std::endl;
+    sink << "  clean     Clean all project files" << std::endl;
     sink << "  help      Show this help" << std::endl;
     sink << "  version   Show the version" << std::endl;
     sink << std::endl;
     sink << "Options:" << std::endl;
-    sink << "  -c, --config <path>    Path to config file" << std::endl;
-    sink << "  -compiler <compiler>   Override compiler" << std::endl;
-    sink << "  -outputDir <dir>       Override output directory" << std::endl;
-    sink << "  -target <name>         Override output file" << std::endl;
-    sink << "  -sourceDir <dir>       Override source directory" << std::endl;
-    sink << "  -unit <unit>           Add a unit to the build" << std::endl;
-    sink << "  -include <dir>         Add an include directory to the build" << std::endl;
-    sink << "  -lib <lib>             Add a library to the build" << std::endl;
-    sink << "  -libraryPath <path>    Add a library path to the build" << std::endl;
-    sink << "  -define <define>       Add a define to the build" << std::endl;
-    sink << "  -flag <flag>           Add a flag to the build" << std::endl;
+    sink << "  -c, --config <path>         Path to config file" << std::endl;
+    sink << "  -compiler <compiler>        Override compiler" << std::endl;
+    sink << "  -outputDir <dir>            Override output directory" << std::endl;
+    sink << "  -target <name>              Override output file" << std::endl;
+    sink << "  -sourceDir <dir>            Override source directory" << std::endl;
+    sink << "  -unit <unit>                Add a unit to the build" << std::endl;
+    sink << "  -include <dir>              Add an include directory to the build" << std::endl;
+    sink << "  -lib <lib>                  Add a library to the build" << std::endl;
+    sink << "  -libraryPath <path>         Add a library path to the build" << std::endl;
+    sink << "  -define <define>            Add a define to the build" << std::endl;
+    sink << "  -flag <flag>                Add a flag to the build" << std::endl;
+    sink << "  -preBuild <command>         Run a command before the build" << std::endl;
+    sink << "  -postBuild <command>        Run a command after the build" << std::endl;
+    sink << "  -macroPrefix <prefix>       Compiler prefix for macros" << std::endl;
+    sink << "  -libraryPrefix <prefix>     Compiler prefix for libraries" << std::endl;
+    sink << "  -libraryPathPrefix <prefix> Compiler prefix for library paths" << std::endl;
+    sink << "  -includePrefix <prefix>     Compiler prefix for includes" << std::endl;
+    sink << "  -outputPrefix <prefix>      Compiler prefix for output files" << std::endl;
+    sink << "  -preset <preset>            Use a preset for initialization (only works with the 'init' command)" << std::endl;
 }
 
 bool overrideCompiler = false;
 bool overrideOutputDir = false;
 bool overrideTarget = false;
 bool overrideSourceDir = false;
+bool overrideMacroPrefix = false;
+bool overrideLibraryPrefix = false;
+bool overrideLibraryPathPrefix = false;
+bool overrideIncludePrefix = false;
+bool overrideOutFilePrefix = false;
 
 std::string compiler = "gcc";
 std::string outputDir = "build";
 std::string target = "main";
 std::string sourceDir = "src";
+
+std::string macroPrefix = "-D";
+std::string libraryPrefix = "-l";
+std::string libraryPathPrefix = "-L";
+std::string includePrefix = "-I";
+std::string outFilePrefix = "-o";
+
 std::vector<std::string> customUnits;
 std::vector<std::string> customIncludes;
 std::vector<std::string> customLibs;
 std::vector<std::string> customLibraryPaths;
 std::vector<std::string> customDefines;
 std::vector<std::string> customFlags;
+std::vector<std::string> customPreBuilds;
+std::vector<std::string> customPostBuilds;
 
 std::string cmd_build(std::string& configFile) {
     bool configExists = std::__fs::filesystem::exists(configFile);
@@ -226,6 +287,21 @@ std::string cmd_build(std::string& configFile) {
     if (overrideSourceDir) {
         buildConfig.sourceDir = sourceDir;
     }
+    if (overrideMacroPrefix) {
+        buildConfig.macroPrefix = macroPrefix;
+    }
+    if (overrideLibraryPrefix) {
+        buildConfig.libraryPrefix = libraryPrefix;
+    }
+    if (overrideLibraryPathPrefix) {
+        buildConfig.libraryPathPrefix = libraryPathPrefix;
+    }
+    if (overrideIncludePrefix) {
+        buildConfig.includePrefix = includePrefix;
+    }
+    if (overrideOutFilePrefix) {
+        buildConfig.outFilePrefix = outFilePrefix;
+    }
     std::string cmd = buildConfig.compiler;
     cmd += " ";
     for (auto flag : buildConfig.flags) {
@@ -237,45 +313,51 @@ std::string cmd_build(std::string& configFile) {
         cmd += " ";
     }
     for (auto define : customDefines) {
-        cmd += "-D";
-        cmd += define;
-        cmd += " ";
+        if (buildConfig.macroPrefix == DRAGON_UNSUPPORTED_STR) {
+            std::cerr << "[Dragon] " << "Macro prefix not supported by compiler!" << std::endl;
+        } else {
+            cmd += buildConfig.macroPrefix;
+            cmd += define;
+            cmd += " ";
+        }
     }
     for (auto libDir : buildConfig.libraryPaths) {
-        // TODO: Make this prefix customizable
-        cmd += "-L";
+        cmd += buildConfig.libraryPathPrefix;
         cmd += libDir;
         cmd += " ";
     }
     for (auto libDir : customLibraryPaths) {
-        // TODO: Make this prefix customizable
-        cmd += "-L";
+        cmd += buildConfig.libraryPathPrefix;
         cmd += libDir;
         cmd += " ";
     }
     for (auto lib : buildConfig.libs) {
-        // TODO: Make this prefix customizable
-        cmd += "-l";
+        cmd += buildConfig.libraryPrefix;
         cmd += lib;
         cmd += " ";
     }
     for (auto lib : customLibs) {
-        // TODO: Make this prefix customizable
-        cmd += "-l";
+        cmd += buildConfig.libraryPrefix;
         cmd += lib;
         cmd += " ";
     }
     for (auto include : buildConfig.includes) {
-        // TODO: Make this prefix customizable
-        cmd += "-I";
-        cmd += include;
-        cmd += " ";
+        if (buildConfig.includePrefix == DRAGON_UNSUPPORTED_STR) {
+            std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
+        } else {
+            cmd += buildConfig.includePrefix;
+            cmd += include;
+            cmd += " ";
+        }
     }
     for (auto include : customIncludes) {
-        // TODO: Make this prefix customizable
-        cmd += "-I";
-        cmd += include;
-        cmd += " ";
+        if (buildConfig.includePrefix == DRAGON_UNSUPPORTED_STR) {
+            std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
+        } else {
+            cmd += buildConfig.includePrefix;
+            cmd += include;
+            cmd += " ";
+        }
     }
     for (auto unit : buildConfig.units) {
         cmd += buildConfig.sourceDir;
@@ -294,7 +376,8 @@ std::string cmd_build(std::string& configFile) {
     outputFile += buildConfig.target;
 
     // TODO: Make this customizable
-    cmd += "-o ";
+    cmd += buildConfig.outFilePrefix;
+    cmd += " ";
     cmd += outputFile;
     cmd += " ";
 
@@ -320,6 +403,14 @@ std::string cmd_build(std::string& configFile) {
     }
     std::string cmdStr = cmd;
     std::cout << "[Dragon] " << cmdStr << std::endl;
+    for (auto preBuild : buildConfig.preBuild) {
+        std::cout << "[Dragon] Running Prebuild command: " << preBuild << std::endl;
+        int ret = system(preBuild.c_str());
+        if (ret != 0) {
+            std::cerr << "[Dragon] " << "Pre-build command failed: " << preBuild << std::endl;
+            exit(1);
+        }
+    }
     FILE* cmdPipe = popen(cmdStr.c_str(), "r");
     if (!cmdPipe) {
         std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
@@ -330,6 +421,14 @@ std::string cmd_build(std::string& configFile) {
         std::cout << buf2;
     }
     pclose(cmdPipe);
+    for (auto postBuild : buildConfig.postBuild) {
+        std::cout << "[Dragon] Running Postbuild command: " << postBuild << std::endl;
+        int ret = system(postBuild.c_str());
+        if (ret != 0) {
+            std::cerr << "[Dragon] " << "Post-build command failed: " << postBuild << std::endl;
+            exit(1);
+        }
+    }
     return outputFile;
 }
 
@@ -414,15 +513,38 @@ void cmd_init(std::string& configFile) {
         }
         config << "];" << std::endl;
     }
+    if (customPreBuilds.size() == 0) {
+        config << "preBuild: [];" << std::endl;
+    } else {
+        config << "preBuild: [" << std::endl;
+        for (auto preBuild : customPreBuilds) {
+            config << "    \"" << preBuild << "\";" << std::endl;
+        }
+        config << "];" << std::endl;
+    }
+    if (customPostBuilds.size() == 0) {
+        config << "postBuild: [];" << std::endl;
+    } else {
+        config << "postBuild: [" << std::endl;
+        for (auto postBuild : customPostBuilds) {
+            config << "    \"" << postBuild << "\";" << std::endl;
+        }
+        config << "];" << std::endl;
+    }
+    config << "macroPrefix: \"" << macroPrefix << "\";" << std::endl;
+    config << "libraryPrefix: \"" << libraryPrefix << "\";" << std::endl;
+    config << "libraryPathPrefix: \"" << libraryPathPrefix << "\";" << std::endl;
+    config << "includePrefix: \"" << includePrefix << "\";" << std::endl;
+    config << "outFilePrefix: \"" << outFilePrefix << "\";" << std::endl;
     config.close();
     std::cout << "[Dragon] " << "Config file created at " << configFile << std::endl;
 }
 
 void cmd_run(std::string& configFile) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::string outfile = cmd_build(configFile);
     std::string cmd = "./" + outfile;
     std::cout << "[Dragon] " << "Running " << cmd << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
     int ret = system(cmd.c_str());
     auto end = std::chrono::high_resolution_clock::now();
     double runtimeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -468,11 +590,18 @@ void generate_generic_main(std::string lang) {
         mainFile.close();
     } else if (lang == "scale") {
         std::__fs::filesystem::create_directories(sourceDir);
-        std::ofstream mainFile(sourceDir + "/main.cpp");
+        std::ofstream mainFile(sourceDir + "/main.scale");
         mainFile << "#include \"core.scale\"\n\n";
         mainFile << "function main()\n";
         mainFile << "    \"Hello, World!\" puts\n";
         mainFile << "end" << std::endl;
+        mainFile.close();
+    } else if (lang == "kotlin") {
+        std::__fs::filesystem::create_directories(sourceDir);
+        std::ofstream mainFile(sourceDir + "/main.kt");
+        mainFile << "fun main() {\n";
+        mainFile << "    println(\"Hello, World!\")\n";
+        mainFile << "}" << std::endl;
         mainFile.close();
     } else {
         std::cerr << "[Dragon] " << "Unknown language: " << lang << std::endl;
@@ -488,10 +617,12 @@ std::vector<std::string> get_presets() {
     presets.push_back("gcc-cpp");
     presets.push_back("tcc-c");
     presets.push_back("sclc-scale");
+    presets.push_back("kotlinc-kotlin");
     return presets;
 }
 
 void load_preset(std::string& identifier) {
+    std::cout << "[Dragon] " << "Loading preset: " << identifier << std::endl;
     std::vector<std::string> tokens = split(identifier, '-');
     if (tokens.size() != 2) {
         std::cerr << "[Dragon] " << "Invalid preset identifier: " << identifier << std::endl;
@@ -571,10 +702,81 @@ void load_preset(std::string& identifier) {
             std::cerr << "[Dragon] " << "Unsupported language with sclc: " << lang << std::endl;
             exit(1);
         }
+    } else if (compilerArgument == "kotlin") {
+        if (lang == "kotlin") {
+            compiler = "kotlinc-native";
+            target = "main.kexe";
+            sourceDir = "src";
+            outputDir = "build";
+            libraryPathPrefix = "-repo ";
+            libraryPrefix = "-library ";
+            macroPrefix = DRAGON_UNSUPPORTED_STR;
+            includePrefix = DRAGON_UNSUPPORTED_STR;
+            overrideMacroPrefix = true;
+            overrideLibraryPathPrefix = true;
+            overrideLibraryPrefix = true;
+            overrideIncludePrefix = true;
+            customUnits.push_back("main.kt");
+            generate_generic_main("kotlin");
+        } else {
+            std::cerr << "[Dragon] " << "Unsupported language with kotlin: " << lang << std::endl;
+            exit(1);
+        }
     } else {
         std::cerr << "[Dragon] " << "Invalid compiler: " << compilerArgument << std::endl;
         exit(1);
     }
+    std::cout << "[Dragon] " << "Loaded preset" << std::endl;
+}
+
+void cmd_clean(std::string& configFile) {
+    bool configExists = std::__fs::filesystem::exists(configFile);
+    if (!configExists) {
+        std::cerr << "[Dragon] " << "Config file not found!" << std::endl;
+        std::cerr << "[Dragon] " << "Have you forgot to run 'dragon init'?" << std::endl;
+        exit(1);
+    }
+
+    FILE* fp = fopen(configFile.c_str(), "r");
+    if (!fp) {
+        std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
+        exit(1);
+    }
+    fseek(fp, 0, SEEK_END);
+    size_t size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char* buf = new char[size + 1];
+    fread(buf, 1, size, fp);
+    buf[size] = '\0';
+    fclose(fp);
+    std::string config(buf);
+    delete[] buf;
+    Dragon::Build buildConfig = Dragon::Config::parse(config);
+
+    std::string validation = "dragon-v" + std::string(VERSION);
+    std::cout << "\x07";
+    std::cout << "[Dragon] " << "Warning: This action is not reversible!" << std::endl;
+    std::cout << "[Dragon] " << "All files in the directories below will be deleted:" << std::endl;
+    std::cout << "[Dragon] " << "    " << buildConfig.outputDir << std::endl;
+    std::cout << "[Dragon] " << "    " << buildConfig.sourceDir << std::endl;
+    std::cout << "[Dragon] " << "Are you sure you want to continue?" << std::endl;
+    std::cout << "[Dragon] " << "Please type '" << validation << "' to confirm" << std::endl;
+    std::cout << "[Dragon] " << "> ";
+    std::string answer;
+    std::cin >> answer;
+
+    if (answer != validation) {
+        std::cerr << "[Dragon] " << "Invalid validation code! Aborting..." << std::endl;
+        return;
+    }
+
+    std::cout << "[Dragon] " << "Cleaning..." << std::endl;
+    std::string outputDir = buildConfig.outputDir;
+    std::string sourceDir = buildConfig.sourceDir;
+    std::__fs::filesystem::remove_all(outputDir);
+    std::__fs::filesystem::remove_all(sourceDir);
+    std::__fs::filesystem::remove("build.drg");
+    std::cout << "[Dragon] " << "Cleaned" << std::endl;
 }
 
 int main(int argc, const char* argv[])
@@ -683,6 +885,51 @@ int main(int argc, const char* argv[])
                 return 0;
             } else {
                 std::cerr << "[Dragon] " << "No preset specified" << std::endl;
+                std::cerr << "[Dragon] " << "Available presets: " << std::endl;
+                std::vector<std::string> presets = get_presets();
+                for (auto preset : presets) {
+                    std::cerr << "[Dragon] " << "    " << preset << std::endl;
+                }
+                exit(1);
+            }
+        } else if (arg == "-macroPrefix") {
+            overrideMacroPrefix = true;
+            if (i + 1 < argc) {
+                macroPrefix = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No macro prefix specified" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-libraryPrefix") {
+            overrideLibraryPrefix = true;
+            if (i + 1 < argc) {
+                libraryPrefix = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No library prefix specified" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-libraryPathPrefix") {
+            overrideLibraryPathPrefix = true;
+            if (i + 1 < argc) {
+                libraryPathPrefix = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No library path prefix specified" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-includePrefix") {
+            overrideIncludePrefix = true;
+            if (i + 1 < argc) {
+                includePrefix = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No include prefix specified" << std::endl;
+                exit(1);
+            }
+        } else if (arg == "-outputPrefix") {
+            overrideOutFilePrefix = true;
+            if (i + 1 < argc) {
+                outFilePrefix = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No output prefix specified" << std::endl;
                 exit(1);
             }
         } else if (arg == "-h" || arg == "--help") {
@@ -705,6 +952,8 @@ int main(int argc, const char* argv[])
         std::cout << "Dragon version " << VERSION << std::endl;
     } else if (command == "run") {
         cmd_run(configFile);
+    } else if (command == "clean") {
+        cmd_clean(configFile);
     } else {
         std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
         usage(std::string(argv[0]), std::cerr);
