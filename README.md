@@ -11,7 +11,7 @@ $ make compile
 After that, you should be able to do the following to rebuild the project:
 
 ```bash
-$ ./build/dragon
+$ ./build/dragon build
 ```
 
 ## Language Support
