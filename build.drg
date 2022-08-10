@@ -1,0 +1,19 @@
+compiler: "clang++";
+outputDir: "build";
+target: "dragon";
+sourceDir: "src";
+units: [
+    "dragon.cpp";
+];
+flags: [
+    "-Wall";
+    "-Wextra";
+    "-Werror";
+    "-pedantic";
+];
+includes: [];
+libs: [];
+defines: [
+    "VERSION=\"1.0.0\"";
+];
+otherFlags: [];
