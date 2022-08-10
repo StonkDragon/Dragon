@@ -153,6 +153,7 @@ void usage(std::string progName, std::__1::ostream& sink) {
     sink << "Usage: " << progName << " <command> [options]" << std::endl;
     sink << "Commands:" << std::endl;
     sink << "  build     Build the project" << std::endl;
+    sink << "  run       Compile and run the project" << std::endl;
     sink << "  init      Initialize a new project" << std::endl;
     sink << "  help      Show this help" << std::endl;
     sink << "  version   Show the version" << std::endl;
@@ -175,7 +176,7 @@ std::string outputDir = "build";
 std::string target = "main";
 std::string sourceDir = "src";
 
-void cmd_build(std::string& configFile) {
+std::string cmd_build(std::string& configFile) {
     bool configExists = std::__fs::filesystem::exists(configFile);
     if (!configExists) {
         std::cerr << "[Dragon] " << "Config file not found!" << std::endl;
@@ -238,10 +239,12 @@ void cmd_build(std::string& configFile) {
         cmd += unit;
         cmd += " ";
     }
+    std::string outputFile = buildConfig.outputDir;
+    outputFile += std::__fs::filesystem::path::preferred_separator;
+    outputFile += buildConfig.target;
+
     cmd += "-o ";
-    cmd += buildConfig.outputDir;
-    cmd += std::__fs::filesystem::path::preferred_separator;
-    cmd += buildConfig.target;
+    cmd += outputFile;
     cmd += " ";
 
     bool outDirExists = std::__fs::filesystem::exists(buildConfig.outputDir);
@@ -276,6 +279,7 @@ void cmd_build(std::string& configFile) {
         std::cout << buf2;
     }
     pclose(cmdPipe);
+    return outputFile;
 }
 
 void cmd_init(std::string& configFile) {
@@ -310,6 +314,21 @@ void cmd_init(std::string& configFile) {
     config.close();
     std::cout << "[Dragon] " << "Config file created at " << configFile << std::endl;
 
+}
+
+void cmd_run(std::string& configFile) {
+    std::string outfile = cmd_build(configFile);
+    std::string cmd = "./" + outfile;
+    std::cout << "[Dragon] " << "Running " << cmd << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+    int ret = system(cmd.c_str());
+    auto end = std::chrono::high_resolution_clock::now();
+    double runtimeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    if (ret != 0) {
+        std::cerr << "[Dragon] " << "Failed to run " << cmd << std::endl;
+        exit(1);
+    }
+    std::cout << "[Dragon] " << "Finished in " << (runtimeMillis / 1000.0) << " seconds" << std::endl;
 }
 
 int main(int argc, const char* argv[])
@@ -378,6 +397,8 @@ int main(int argc, const char* argv[])
         usage(argv[0], std::cout);
     } else if (command == "version") {
         std::cout << "Dragon version " << VERSION << std::endl;
+    } else if (command == "run") {
+        cmd_run(configFile);
     } else {
         std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
         usage(std::string(argv[0]), std::cerr);
