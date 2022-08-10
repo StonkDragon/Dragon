@@ -378,7 +378,7 @@ int main(int argc, const char* argv[])
         usage(argv[0], std::cout);
     } else if (command == "version") {
         std::cout << "Dragon version " << VERSION << std::endl;
-} else {
+    } else {
         std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
         usage(std::string(argv[0]), std::cerr);
         exit(1);
