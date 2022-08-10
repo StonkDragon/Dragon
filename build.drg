@@ -11,9 +11,11 @@ flags: [
     "-Werror";
     "-pedantic";
 ];
-includes: [];
-libs: [];
-defines: [
-    "VERSION=\"1.2.0\"";
+includes: [
+    "src";
 ];
-otherFlags: [];
+libs: [];
+libraryPaths: [];
+defines: [
+    "VERSION=\"1.3.0\"";
+];
