@@ -21,8 +21,3 @@ defines: [
 ];
 preBuild: [];
 postBuild: [];
-macroPrefix: "-D";
-libraryPrefix: "-l";
-libraryPathPrefix: "-L";
-includePrefix: "-I";
-outFilePrefix: "-o";

@@ -7,7 +7,7 @@ make all --print-data-base --no-builtin-variables --no-builtin-rules --question
 
 # This program built for i386-apple-darwin11.3.0
 
-# Make data base, printed on Wed Aug 10 21:06:51 2022
+# Make data base, printed on Wed Aug 10 22:15:33 2022
 
 # Variables
 
@@ -200,7 +200,7 @@ all:
 # Not a target:
 Makefile:
 #  Implicit rule search has been done.
-#  Last modified 2022-08-10 19:12:58
+#  Last modified 2022-08-10 22:15:16
 #  File has been updated.
 #  Successfully updated.
 # variable set hash-table stats:
@@ -213,7 +213,7 @@ compile:
 #  commands to execute (from `Makefile', line 7):
 	mkdir -p build
 	$(CC) $(CFLAGS) $(SRC) -o $(EXE)
-	./$(EXE)
+	./$(EXE) build
 	
 
 # Not a target:
@@ -235,7 +235,7 @@ compile:
 # strcache size: total = 4096 / max = 4096 / min = 4096 / avg = 4096
 # strcache free: total = 4087 / max = 4087 / min = 4087 / avg = 4087
 
-# Finished Make data base on Wed Aug 10 21:06:51 2022
+# Finished Make data base on Wed Aug 10 22:15:33 2022
 
  
 make: *** No rule to make target `all'.  Stop.

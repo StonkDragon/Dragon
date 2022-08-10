@@ -302,6 +302,21 @@ std::string cmd_build(std::string& configFile) {
     if (overrideOutFilePrefix) {
         buildConfig.outFilePrefix = outFilePrefix;
     }
+    if (buildConfig.macroPrefix.size() == 0) {
+        buildConfig.macroPrefix = "-D";
+    }
+    if (buildConfig.libraryPrefix.size() == 0) {
+        buildConfig.libraryPrefix = "-l";
+    }
+    if (buildConfig.libraryPathPrefix.size() == 0) {
+        buildConfig.libraryPathPrefix = "-L";
+    }
+    if (buildConfig.includePrefix.size() == 0) {
+        buildConfig.includePrefix = "-I";
+    }
+    if (buildConfig.outFilePrefix.size() == 0) {
+        buildConfig.outFilePrefix = "-o";
+    }
     std::string cmd = buildConfig.compiler;
     cmd += " ";
     for (auto flag : buildConfig.flags) {
