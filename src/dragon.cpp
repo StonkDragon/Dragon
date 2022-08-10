@@ -21,6 +21,7 @@ namespace Dragon
         std::vector<std::string> flags;
         std::vector<std::string> includes;
         std::vector<std::string> libs;
+        std::vector<std::string> libDirs;
     };
 
     struct Config {
@@ -99,6 +100,18 @@ namespace Dragon
                         for (auto& value : values) {
                             build.flags.push_back(value);
                         }
+                    } else if (key == "libraryPaths") {
+                        for (auto& value : values) {
+                            build.libDirs.push_back(value);
+                        }
+                    } else if (key == "compiler") {
+                        build.compiler = values.at(0);
+                    } else if (key == "target") {
+                        build.target = values.at(0);
+                    } else if (key == "outputDir") {
+                        build.outputDir = values.at(0);
+                    } else if (key == "sourceDir") {
+                        build.sourceDir = values.at(0);
                     } else {
                         std::cerr << "[Dragon] " << "Unknown list: " << key << std::endl;
                         exit(1);
@@ -137,31 +150,178 @@ namespace Dragon
 } // namespace Dragon
 
 void usage(std::string progName, std::__1::ostream& sink) {
-    sink << "Usage: " << progName << " [options]" << std::endl;
+    sink << "Usage: " << progName << " <command> [options]" << std::endl;
+    sink << "Commands:" << std::endl;
+    sink << "  build     Build the project" << std::endl;
+    sink << "  init      Initialize a new project" << std::endl;
+    sink << "  help      Show this help" << std::endl;
+    sink << "  version   Show the version" << std::endl;
+    sink << std::endl;
     sink << "Options:" << std::endl;
     sink << "  -c, --config <path>    Path to config file" << std::endl;
-    sink << "  -h, --help             Print this message" << std::endl;
     sink << "  -compiler <compiler>   Override compiler" << std::endl;
     sink << "  -outputDir <dir>       Override output directory" << std::endl;
     sink << "  -target <name>         Override output file" << std::endl;
     sink << "  -sourceDir <dir>       Override source directory" << std::endl;
 }
 
+bool overrideCompiler = false;
+bool overrideOutputDir = false;
+bool overrideTarget = false;
+bool overrideSourceDir = false;
+
+std::string compiler = "gcc";
+std::string outputDir = "build";
+std::string target = "main";
+std::string sourceDir = "src";
+
+void cmd_build(std::string& configFile) {
+    bool configExists = std::__fs::filesystem::exists(configFile);
+    if (!configExists) {
+        std::cerr << "[Dragon] " << "Config file not found!" << std::endl;
+        std::cerr << "[Dragon] " << "Have you forgot to run 'dragon init'?" << std::endl;
+        exit(1);
+    }
+
+    FILE* fp = fopen(configFile.c_str(), "r");
+    if (!fp) {
+        std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
+        exit(1);
+    }
+    fseek(fp, 0, SEEK_END);
+    size_t size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char* buf = new char[size + 1];
+    fread(buf, 1, size, fp);
+    buf[size] = '\0';
+    fclose(fp);
+    std::string config(buf);
+    delete[] buf;
+    Dragon::Build buildConfig = Dragon::Config::parse(config);
+    
+    if (overrideCompiler) {
+        buildConfig.compiler = compiler;
+    }
+    if (overrideOutputDir) {
+        buildConfig.outputDir = outputDir;
+    }
+    if (overrideTarget) {
+        buildConfig.target = target;
+    }
+    if (overrideSourceDir) {
+        buildConfig.sourceDir = sourceDir;
+    }
+    std::string cmd = buildConfig.compiler;
+    cmd += " ";
+    for (auto flag : buildConfig.flags) {
+        cmd += flag;
+        cmd += " ";
+    }
+    for (auto libDir : buildConfig.libDirs) {
+        cmd += "-L";
+        cmd += libDir;
+        cmd += " ";
+    }
+    for (auto lib : buildConfig.libs) {
+        cmd += "-l";
+        cmd += lib;
+        cmd += " ";
+    }
+    for (auto include : buildConfig.includes) {
+        cmd += "-I";
+        cmd += include;
+        cmd += " ";
+    }
+    for (auto unit : buildConfig.units) {
+        cmd += buildConfig.sourceDir;
+        cmd += std::__fs::filesystem::path::preferred_separator;
+        cmd += unit;
+        cmd += " ";
+    }
+    cmd += "-o ";
+    cmd += buildConfig.outputDir;
+    cmd += std::__fs::filesystem::path::preferred_separator;
+    cmd += buildConfig.target;
+    cmd += " ";
+
+    bool outDirExists = std::__fs::filesystem::exists(buildConfig.outputDir);
+    if (outDirExists) {
+        if (buildConfig.outputDir == ".") {
+            std::cerr << "[Dragon] " << "Cannot build in current directory" << std::endl;
+            exit(1);
+        }
+        std::__fs::filesystem::remove_all(buildConfig.outputDir);
+    }
+    try {
+        std::__fs::filesystem::create_directories(buildConfig.outputDir);
+    } catch (std::__fs::filesystem::filesystem_error& e) {
+        std::cerr << "Failed to create output directory: " << buildConfig.outputDir << std::endl;
+        exit(1);
+    }
+
+    bool sourceDirExists = std::__fs::filesystem::exists(buildConfig.sourceDir);
+    if (!sourceDirExists) {
+        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.sourceDir << std::endl;
+        exit(1);
+    }
+    std::string cmdStr = cmd;
+    std::cout << "[Dragon] " << cmdStr << std::endl;
+    FILE* cmdPipe = popen(cmdStr.c_str(), "r");
+    if (!cmdPipe) {
+        std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
+        exit(1);
+    }
+    char buf2[1024];
+    while (fgets(buf2, 1024, cmdPipe)) {
+        std::cout << buf2;
+    }
+    pclose(cmdPipe);
+}
+
+void cmd_init(std::string& configFile) {
+    if (std::__fs::filesystem::exists(configFile)) {
+        std::cout << "[Dragon] " << "Config file already exists." << std::endl;
+        return;
+    }
+    std::ofstream config(configFile);
+    config << "compiler: \"gcc\";" << std::endl;
+    config << "outputDir: \"build\";" << std::endl;
+    config << "target: \"main\";" << std::endl;
+    config << "sourceDir: \"src\";" << std::endl;
+    config << "units: [" << std::endl;
+    config << "    \"main.c\";" << std::endl;
+    config << "];" << std::endl;
+    config << "flags: [" << std::endl;
+    config << "    \"-Wall\";" << std::endl;
+    config << "    \"-Wextra\";" << std::endl;
+    config << "    \"-pedantic\";" << std::endl;
+    config << "    \"-std=c17\";" << std::endl;
+    config << "];" << std::endl;
+    config << "includes: [" << std::endl;
+    config << "    \"src\";" << std::endl;
+    config << "];" << std::endl;
+    config << "libs: [" << std::endl;
+    config << "    \"m\";" << std::endl;
+    config << "];" << std::endl;
+    config << "defines: [" << std::endl;
+    config << "    \"VERSION=\\\"1.0\\\"\";" << std::endl;
+    config << "];" << std::endl;
+    config << "otherFlags: [];" << std::endl;
+    config.close();
+    std::cout << "[Dragon] " << "Config file created at " << configFile << std::endl;
+
+}
+
 int main(int argc, const char* argv[])
 {
     std::string configFile = "build.drg";
 
-    bool overrideCompiler = false;
-    bool overrideOutputDir = false;
-    bool overrideTarget = false;
-    bool overrideSourceDir = false;
+    if (argc < 2) {
+        usage(argv[0], std::cout);
+        return 0;
+    }
 
-    std::string compiler = "gcc";
-    std::string outputDir = "build";
-    std::string target = "main";
-    std::string sourceDir = "src";
-
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 2; i < argc; ++i) {
         std::string arg = std::string(argv[i]);
         if (arg == "-c" || arg == "--config") {
             if (i + 1 < argc) {
@@ -202,12 +362,6 @@ int main(int argc, const char* argv[])
                 std::cerr << "[Dragon] " << "No source directory specified" << std::endl;
                 exit(1);
             }
-        } else if (arg == "-h" || arg == "--help") {
-            usage(std::string(argv[0]), std::cout);
-            return 0;
-        } else if (arg == "-v" || arg == "--version") {
-            std::cout << "Dragon version " << VERSION << std::endl;
-            return 0;
         } else {
             std::cerr << "[Dragon] " << "Unknown argument: " << arg << std::endl;
             usage(std::string(argv[0]), std::cerr);
@@ -215,124 +369,20 @@ int main(int argc, const char* argv[])
         }
     }
 
-    bool configExists = std::__fs::filesystem::exists(configFile);
-    if (!configExists) {
-        std::cout << "[Dragon] " << "Creating default config file: " << configFile << std::endl;
-        std::ofstream config(configFile);
-        config << "compiler: \"gcc\";" << std::endl;
-        config << "outputDir: \"build\";" << std::endl;
-        config << "target: \"main\";" << std::endl;
-        config << "sourceDir: \"src\";" << std::endl;
-        config << "units: [" << std::endl;
-        config << "    \"main.c\";" << std::endl;
-        config << "];" << std::endl;
-        config << "flags: [" << std::endl;
-        config << "    \"-Wall\";" << std::endl;
-        config << "    \"-Wextra\";" << std::endl;
-        config << "    \"-pedantic\";" << std::endl;
-        config << "    \"-std=c17\";" << std::endl;
-        config << "];" << std::endl;
-        config << "includes: [" << std::endl;
-        config << "    \"src\";" << std::endl;
-        config << "];" << std::endl;
-        config << "libs: [" << std::endl;
-        config << "    \"m\";" << std::endl;
-        config << "];" << std::endl;
-        config << "defines: [" << std::endl;
-        config << "    \"VERSION=\\\"1.0\\\"\";" << std::endl;
-        config << "];" << std::endl;
-        config << "otherFlags: [];" << std::endl;
-        config.close();
-        exit(0);
+    std::string command = argv[1];
+    if (command == "init") {
+        cmd_init(configFile);
+    } else if (command == "build") {
+        cmd_build(configFile);
+    } else if (command == "help") {
+        usage(argv[0], std::cout);
+    } else if (command == "version") {
+        std::cout << "Dragon version " << VERSION << std::endl;
+} else {
+        std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
+        usage(std::string(argv[0]), std::cerr);
+        exit(1);
     }
-
-    FILE* fp = fopen(configFile.c_str(), "r");
-    if (!fp) {
-        std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
-        return 1;
-    }
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    char* buf = new char[size + 1];
-    fread(buf, 1, size, fp);
-    buf[size] = '\0';
-    fclose(fp);
-    std::string config(buf);
-    delete[] buf;
-    Dragon::Build buildConfig = Dragon::Config::parse(config);
     
-    if (overrideCompiler) {
-        buildConfig.compiler = compiler;
-    }
-    if (overrideOutputDir) {
-        buildConfig.outputDir = outputDir;
-    }
-    if (overrideTarget) {
-        buildConfig.target = target;
-    }
-    if (overrideSourceDir) {
-        buildConfig.sourceDir = sourceDir;
-    }
-    std::string cmd = buildConfig.compiler;
-    cmd += " ";
-    for (auto flag : buildConfig.flags) {
-        cmd += flag;
-        cmd += " ";
-    }
-    cmd += "-o ";
-    cmd += buildConfig.outputDir;
-    cmd += std::__fs::filesystem::path::preferred_separator;
-    cmd += buildConfig.target;
-    cmd += " ";
-    for (auto unit : buildConfig.units) {
-        cmd += buildConfig.sourceDir;
-        cmd += std::__fs::filesystem::path::preferred_separator;
-        cmd += unit;
-        cmd += " ";
-    }
-    for (auto lib : buildConfig.libs) {
-        cmd += "-l";
-        cmd += lib;
-        cmd += " ";
-    }
-    for (auto include : buildConfig.includes) {
-        cmd += "-I";
-        cmd += include;
-        cmd += " ";
-    }
-
-    bool outDirExists = std::__fs::filesystem::exists(buildConfig.outputDir);
-    if (outDirExists) {
-        if (buildConfig.outputDir == ".") {
-            std::cerr << "[Dragon] " << "Cannot build in current directory" << std::endl;
-            return 1;
-        }
-        std::__fs::filesystem::remove_all(buildConfig.outputDir);
-    }
-    try {
-        std::__fs::filesystem::create_directories(buildConfig.outputDir);
-    } catch (std::__fs::filesystem::filesystem_error& e) {
-        std::cerr << "Failed to create output directory: " << buildConfig.outputDir << std::endl;
-        return 1;
-    }
-
-    bool sourceDirExists = std::__fs::filesystem::exists(buildConfig.sourceDir);
-    if (!sourceDirExists) {
-        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.sourceDir << std::endl;
-        return 1;
-    }
-    std::string cmdStr = cmd;
-    std::cout << "[Dragon] " << cmdStr << std::endl;
-    FILE* cmdPipe = popen(cmdStr.c_str(), "r");
-    if (!cmdPipe) {
-        std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
-        return 1;
-    }
-    char buf2[1024];
-    while (fgets(buf2, 1024, cmdPipe)) {
-        std::cout << buf2;
-    }
-    pclose(cmdPipe);
     return 0;
 }
