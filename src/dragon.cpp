@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <string.h>
 
 #ifdef _WIN32
 #error "Windows is currently not supported."
