@@ -14,6 +14,7 @@
 #define DRAGON_UNSUPPORTED_STR "<DRAGON_UNSUPPORTED>"
 
 #ifdef __APPLE__
+// macOS is annoying and doesn't have std::filesystem
 #define NS_FS_PREF std::__fs
 #define NS_OS_PREF std::__1
 #else
