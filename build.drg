@@ -10,6 +10,7 @@ flags: [
     "-Wextra";
     "-Werror";
     "-pedantic";
+    "-std=gnu++17";
 ];
 includes: [
     "src";
