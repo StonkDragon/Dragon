@@ -13,6 +13,12 @@
 
 #define DRAGON_UNSUPPORTED_STR "<DRAGON_UNSUPPORTED>"
 
+#ifdef __APPLE__
+#define NS_FS_PREF std::__fs
+#else
+#define NS_FS_PREF std
+#endif
+
 namespace Dragon
 {
     struct Build {
@@ -247,7 +253,7 @@ std::vector<std::string> customPreBuilds;
 std::vector<std::string> customPostBuilds;
 
 std::string cmd_build(std::string& configFile) {
-    bool configExists = std::__fs::filesystem::exists(configFile);
+    bool configExists = NS_FS_PREF::filesystem::exists(configFile);
     if (!configExists) {
         std::cerr << "[Dragon] " << "Config file not found!" << std::endl;
         std::cerr << "[Dragon] " << "Have you forgot to run 'dragon init'?" << std::endl;
@@ -376,18 +382,18 @@ std::string cmd_build(std::string& configFile) {
     }
     for (auto unit : buildConfig.units) {
         cmd += buildConfig.sourceDir;
-        cmd += std::__fs::filesystem::path::preferred_separator;
+        cmd += NS_FS_PREF::filesystem::path::preferred_separator;
         cmd += unit;
         cmd += " ";
     }
     for (auto unit : customUnits) {
         cmd += buildConfig.sourceDir;
-        cmd += std::__fs::filesystem::path::preferred_separator;
+        cmd += NS_FS_PREF::filesystem::path::preferred_separator;
         cmd += unit;
         cmd += " ";
     }
     std::string outputFile = buildConfig.outputDir;
-    outputFile += std::__fs::filesystem::path::preferred_separator;
+    outputFile += NS_FS_PREF::filesystem::path::preferred_separator;
     outputFile += buildConfig.target;
 
     // TODO: Make this customizable
@@ -396,22 +402,22 @@ std::string cmd_build(std::string& configFile) {
     cmd += outputFile;
     cmd += " ";
 
-    bool outDirExists = std::__fs::filesystem::exists(buildConfig.outputDir);
+    bool outDirExists = NS_FS_PREF::filesystem::exists(buildConfig.outputDir);
     if (outDirExists) {
         if (buildConfig.outputDir == ".") {
             std::cerr << "[Dragon] " << "Cannot build in current directory" << std::endl;
             exit(1);
         }
-        std::__fs::filesystem::remove_all(buildConfig.outputDir);
+        NS_FS_PREF::filesystem::remove_all(buildConfig.outputDir);
     }
     try {
-        std::__fs::filesystem::create_directories(buildConfig.outputDir);
-    } catch (std::__fs::filesystem::filesystem_error& e) {
+        NS_FS_PREF::filesystem::create_directories(buildConfig.outputDir);
+    } catch (NS_FS_PREF::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create output directory: " << buildConfig.outputDir << std::endl;
         exit(1);
     }
 
-    bool sourceDirExists = std::__fs::filesystem::exists(buildConfig.sourceDir);
+    bool sourceDirExists = NS_FS_PREF::filesystem::exists(buildConfig.sourceDir);
     if (!sourceDirExists) {
         std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.sourceDir << std::endl;
         exit(1);
@@ -448,7 +454,7 @@ std::string cmd_build(std::string& configFile) {
 }
 
 void cmd_init(std::string& configFile) {
-    if (std::__fs::filesystem::exists(configFile)) {
+    if (NS_FS_PREF::filesystem::exists(configFile)) {
         std::cout << "[Dragon] " << "Config file already exists." << std::endl;
         return;
     }
@@ -556,18 +562,11 @@ void cmd_init(std::string& configFile) {
 }
 
 void cmd_run(std::string& configFile) {
-    auto start = std::chrono::high_resolution_clock::now();
     std::string outfile = cmd_build(configFile);
     std::string cmd = "./" + outfile;
     std::cout << "[Dragon] " << "Running " << cmd << std::endl;
     int ret = system(cmd.c_str());
-    auto end = std::chrono::high_resolution_clock::now();
-    double runtimeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    if (ret != 0) {
-        std::cerr << "[Dragon] " << "Failed to run " << cmd << std::endl;
-        exit(1);
-    }
-    std::cout << "[Dragon] " << "Finished in " << (runtimeMillis / 1000.0) << " seconds" << std::endl;
+    std::cout << "[Dragon] " << "Finished with exit code " << ret << std::endl;
 }
 
 bool strstarts(const std::string& str, const std::string& prefix) {
@@ -586,7 +585,7 @@ std::vector<std::string> split(const std::string& str, char delim) {
 
 void generate_generic_main(std::string lang) {
     if (lang == "c") {
-        std::__fs::filesystem::create_directories(sourceDir);
+        NS_FS_PREF::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + "/main.c");
         mainFile << "#include <stdio.h>\n\n";
         mainFile << "int main() {\n";
@@ -595,7 +594,7 @@ void generate_generic_main(std::string lang) {
         mainFile << "}" << std::endl;
         mainFile.close();
     } else if (lang == "cpp") {
-        std::__fs::filesystem::create_directories(sourceDir);
+        NS_FS_PREF::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + "/main.cpp");
         mainFile << "#include <iostream>\n\n";
         mainFile << "int main() {\n";
@@ -604,7 +603,7 @@ void generate_generic_main(std::string lang) {
         mainFile << "}" << std::endl;
         mainFile.close();
     } else if (lang == "scale") {
-        std::__fs::filesystem::create_directories(sourceDir);
+        NS_FS_PREF::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + "/main.scale");
         mainFile << "#include \"core.scale\"\n\n";
         mainFile << "function main()\n";
@@ -612,7 +611,7 @@ void generate_generic_main(std::string lang) {
         mainFile << "end" << std::endl;
         mainFile.close();
     } else if (lang == "kotlin") {
-        std::__fs::filesystem::create_directories(sourceDir);
+        NS_FS_PREF::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + "/main.kt");
         mainFile << "fun main() {\n";
         mainFile << "    println(\"Hello, World!\")\n";
@@ -745,7 +744,7 @@ void load_preset(std::string& identifier) {
 }
 
 void cmd_clean(std::string& configFile) {
-    bool configExists = std::__fs::filesystem::exists(configFile);
+    bool configExists = NS_FS_PREF::filesystem::exists(configFile);
     if (!configExists) {
         std::cerr << "[Dragon] " << "Config file not found!" << std::endl;
         std::cerr << "[Dragon] " << "Have you forgot to run 'dragon init'?" << std::endl;
@@ -788,9 +787,9 @@ void cmd_clean(std::string& configFile) {
     std::cout << "[Dragon] " << "Cleaning..." << std::endl;
     std::string outputDir = buildConfig.outputDir;
     std::string sourceDir = buildConfig.sourceDir;
-    std::__fs::filesystem::remove_all(outputDir);
-    std::__fs::filesystem::remove_all(sourceDir);
-    std::__fs::filesystem::remove("build.drg");
+    NS_FS_PREF::filesystem::remove_all(outputDir);
+    NS_FS_PREF::filesystem::remove_all(sourceDir);
+    NS_FS_PREF::filesystem::remove("build.drg");
     std::cout << "[Dragon] " << "Cleaned" << std::endl;
 }
 
