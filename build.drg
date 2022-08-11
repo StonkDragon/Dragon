@@ -1,4 +1,8 @@
 build: {
+    osTarget: [
+        "macos";
+        "linux";
+    ];
     compiler: "clang++";
     outputDir: "build";
     target: "dragon";
@@ -22,5 +26,7 @@ build: {
         "VERSION=\"2.0\"";
     ];
     preBuild: [];
-    postBuild: [];
+    postBuild: [
+        "sudo mv build/dragon /usr/local/bin/dragon";
+    ];
 };

@@ -29,6 +29,20 @@
 #define ostream __1::ostream
 #endif
 
+#ifdef __linux__
+const std::string HOSTNAME = "linux";
+#elif _WIN32
+const std::string HOSTNAME = "windows";
+#elif __APPLE__
+const std::string HOSTNAME = "macos";
+#else
+const std::string HOSTNAME = "unknown";
+#endif
+
+bool isOSSupported(const std::string& os) {
+    return HOSTNAME == os;
+}
+
 #include "DragonConfig.hpp"
 
 void usage(std::string progName, std::ostream& sink) {
@@ -62,6 +76,7 @@ void usage(std::string progName, std::ostream& sink) {
     sink << "  -includePrefix <prefix>     Compiler prefix for includes" << std::endl;
     sink << "  -outputPrefix <prefix>      Compiler prefix for output files" << std::endl;
     sink << "  -preset <preset>            Use a preset for initialization (only works with the 'init' command)" << std::endl;
+    sink << "  -conf <key>                 Use key as the root key for build configuration" << std::endl;
 }
 
 bool overrideCompiler = false;
@@ -94,6 +109,8 @@ std::vector<std::string> customFlags;
 std::vector<std::string> customPreBuilds;
 std::vector<std::string> customPostBuilds;
 
+std::string buildConfigRootEntry = "build";
+
 std::string cmd_build(std::string& configFile) {
     bool configExists = std::filesystem::exists(configFile);
     if (!configExists) {
@@ -104,7 +121,22 @@ std::string cmd_build(std::string& configFile) {
     
     DragonConfig::ConfigParser parser;
     DragonConfig::CompoundEntry root = parser.parse(configFile);
-    DragonConfig::CompoundEntry buildConfig = root.getCompound("build");
+    DragonConfig::CompoundEntry buildConfig = root.getCompound(buildConfigRootEntry);
+
+    DragonConfig::ListEntry targetOS = buildConfig.getList("osTarget");
+    bool osIsSupported = false;
+    for (u_long i = 0; i < targetOS.size(); i++) {
+        std::string os = targetOS.get(i);
+        if (isOSSupported(os)) {
+            osIsSupported = true;
+            break;
+        }
+    }
+    if (!osIsSupported) {
+        std::string msg = buildConfig.getStringOrDefault("wrongOsMsg", "OS not supported!").getValue();
+        std::cerr << "[Dragon] " << msg << std::endl;
+        exit(1);
+    }
     
     if (buildConfig.getList("units").size() == 0) {
         std::cerr << "[Dragon] " << "No compilation units defined!" << std::endl;
@@ -241,16 +273,18 @@ std::string cmd_build(std::string& configFile) {
         std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
         exit(1);
     }
-    std::string cmdStr = cmd;
-    std::cout << "[Dragon] " << cmdStr << std::endl;
+
     for (u_long i = 0; i < buildConfig.getList("preBuild").size(); i++) {
-        std::cout << "[Dragon] Running Prebuild command: " << buildConfig.getList("preBuild").get(i) << std::endl;
+        std::cout << "[Dragon] Running prebuild command: " << buildConfig.getList("preBuild").get(i) << std::endl;
         int ret = system(buildConfig.getList("preBuild").get(i).c_str());
         if (ret != 0) {
             std::cerr << "[Dragon] " << "Pre-build command failed: " << buildConfig.getList("preBuild").get(i) << std::endl;
             exit(1);
         }
     }
+
+    std::string cmdStr = cmd;
+    std::cout << "[Dragon] Running build command: " << cmdStr << std::endl;
     FILE* cmdPipe = popen(cmdStr.c_str(), "r");
     if (!cmdPipe) {
         std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
@@ -262,7 +296,7 @@ std::string cmd_build(std::string& configFile) {
     }
     pclose(cmdPipe);
     for (u_long i = 0; i < buildConfig.getList("postBuild").size(); i++) {
-        std::cout << "[Dragon] Running Postbuild command: " << buildConfig.getList("postBuild").get(i) << std::endl;
+        std::cout << "[Dragon] Running postbuild command: " << buildConfig.getList("postBuild").get(i) << std::endl;
         int ret = system(buildConfig.getList("postBuild").get(i).c_str());
         if (ret != 0) {
             std::cerr << "[Dragon] " << "Post-build command failed: " << buildConfig.getList("postBuild").get(i) << std::endl;
@@ -280,7 +314,7 @@ void cmd_init(std::string& configFile) {
     std::ofstream def(configFile);
 
     def << "build: {\n";
-    def << "  compiler: \"" << (overrideCompiler ? compiler : "gcc") << "\"\n;";
+    def << "  compiler: \"" << (overrideCompiler ? compiler : "gcc") << "\";\n";
     def << "  sourceDir: \"" << (overrideSourceDir ? sourceDir : "src") << "\";\n";
     def << "  outputDir: \"" << (overrideOutputDir ? outputDir : "build") << "\";\n";
     def << "  target: \"" << (overrideTarget ? target : "main") << "\";\n";
@@ -393,18 +427,21 @@ void cmd_run(std::string& configFile) {
             }
         }
     }
+
     char** envs_c = NULL;
     envs_c = (char**) malloc(envs.size() * sizeof(char*) + 1);
     for (u_long i = 0; i < envs.size(); i++) {
         envs_c[i] = (char*)envs[i].c_str();
     }
     envs_c[envs.size()] = NULL;
+
     char** argv_c = NULL;
     argv_c = (char**) malloc(argv.size() * sizeof(char*) + 1);
     for (u_long i = 0; i < argv.size(); i++) {
         argv_c[i] = (char*)argv[i].c_str();
     }
     argv_c[argv.size()] = NULL;
+
     std::cout << "[Dragon] " << "Running " << cmd << std::endl;
 
     int child = fork();
@@ -799,6 +836,13 @@ int main(int argc, const char* argv[])
                 std::cerr << "[Dragon] " << "No output prefix specified" << std::endl;
                 exit(1);
             }
+        } else if (arg == "-conf") {
+            if (i + 1 < argc) {
+                buildConfigRootEntry = std::string(argv[++i]);
+            } else {
+                std::cerr << "[Dragon] " << "No build Configuration specified" << std::endl;
+                exit(1);
+            }
         } else if (arg == "-h" || arg == "--help") {
             usage(argv[0], std::cout);
             return 0;
@@ -809,6 +853,7 @@ int main(int argc, const char* argv[])
         }
     }
 
+    // TODO: Add `platform` compound to build config
     if (command == "init") {
         cmd_init(configFile);
     } else if (command == "build") {
