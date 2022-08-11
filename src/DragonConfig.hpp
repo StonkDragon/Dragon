@@ -124,6 +124,24 @@ namespace DragonConfig {
         CompoundEntry() {
             this->setType(EntryType::Compound);
         }
+        bool hasMember(const std::string& key) {
+            for (auto& entry : this->strings) {
+                if (entry.getKey() == key) {
+                    return true;
+                }
+            }
+            for (auto& entry : this->lists) {
+                if (entry.getKey() == key) {
+                    return true;
+                }
+            }
+            for (auto& entry : this->compounds) {
+                if (entry.getKey() == key) {
+                    return true;
+                }
+            }
+            return false;
+        }
         StringEntry getString(const std::string& key) {
             for (auto& entry : this->strings) {
                 if (entry.getKey() == key) {
@@ -173,27 +191,47 @@ namespace DragonConfig {
             this->strings.push_back(newEntry);
         }
         void addString(const std::string& key, const std::string& value) {
+            if (this->hasMember(key)) {
+                std::cerr << "String with key '" << key << "' already exists" << std::endl;
+                exit(1);
+            }
             StringEntry newEntry;
             newEntry.setKey(key);
             newEntry.setValue(value);
             this->strings.push_back(newEntry);
         }
         void addList(const std::string& key, const std::vector<std::string>& value) {
+            if (this->hasMember(key)) {
+                std::cerr << "List with key '" << key << "' already exists!" << std::endl;
+                exit(1);
+            }
             ListEntry newEntry;
             newEntry.setKey(key);
             newEntry.addAll(value);
             this->lists.push_back(newEntry);
         }
         void addList(const std::string& key, const std::string& value) {
+            if (this->hasMember(key)) {
+                std::cerr << "List with key '" << key << "' already exists!" << std::endl;
+                exit(1);
+            }
             ListEntry newEntry;
             newEntry.setKey(key);
             newEntry.add(value);
             this->lists.push_back(newEntry);
         }
         void addList(const ListEntry& value) {
+            if (this->hasMember(value.getKey())) {
+                std::cerr << "List with key '" << value.getKey() << "' already exists!" << std::endl;
+                exit(1);
+            }
             this->lists.push_back(value);
         }
         void addCompound(const CompoundEntry& value) {
+            if (this->hasMember(value.getKey())) {
+                std::cerr << "Compound with key '" << value.getKey() << "' already exists!" << std::endl;
+                exit(1);
+            }
             this->compounds.push_back(value);
         }
         void removeString(const std::string& key) {
@@ -203,7 +241,6 @@ namespace DragonConfig {
                     return;
                 }
             }
-            return;
         }
         void removeList(const std::string& key) {
             for (u_long i = 0; i < this->lists.size(); i++) {
@@ -212,7 +249,6 @@ namespace DragonConfig {
                     return;
                 }
             }
-            return;
         }
         void removeCompound(const std::string& key) {
             for (u_long i = 0; i < this->compounds.size(); i++) {
@@ -221,7 +257,6 @@ namespace DragonConfig {
                     return;
                 }
             }
-            return;
         }
         void removeAll() {
             this->compounds.clear();
@@ -311,6 +346,8 @@ namespace DragonConfig {
                 if (!inStr && config.at((*i)) == ' ') continue;
                 if (config.at((*i)) == '"' && config.at((*i) - 1) != '\\') {
                     inStr = !inStr;
+                    char c = config.at((*i));
+                    data += c;
                     continue;
                 }
                 if (config.at((*i)) == '\n') {
@@ -354,17 +391,31 @@ namespace DragonConfig {
                     c = data.at(++(*i));
                     while (c != ']') {
                         std::string next;
-                        while (c != ';') {
+                        if (c != '"') {
+                            std::cerr << "[Dragon] " << "Invalid string: " << key << std::endl;
+                            exit(1);
+                        }
+                        char prev = c;
+                        c = data.at(++(*i));
+                        while (true) {
+                            if (c == '"' && prev != '\\') break;
+                            prev = c;
                             next += c;
                             c = data.at(++(*i));
-                            if (c == ';') {
-                                values.push_back(next);
-                                break;
-                            }
                         }
+                        c = data.at(++(*i));
+                        if (c != ';') {
+                            std::cerr << "[Dragon] " << "Missing semicolon: " << next << std::endl;
+                            exit(1);
+                        }
+                        values.push_back(next);
                         c = data.at(++(*i));
                     }
                     c = data.at(++(*i));
+                    if (c != ';') {
+                        std::cerr << "[Dragon] " << "Missing semicolon: " << key << std::endl;
+                        exit(1);
+                    }
                     ListEntry entry;
                     entry.setKey(key);
                     entry.addAll(values);
@@ -375,9 +426,19 @@ namespace DragonConfig {
                     compound.compounds.push_back(entry);
                 } else {
                     std::string value = "";
-                    while (c != ';') {
+                    if (c != '"') {
+                        std::cerr << "[Dragon] " << "Invalid string: " << key << std::endl;
+                        exit(1);
+                    }
+                    c = data.at(++(*i));
+                    while (c != '"') {
                         value += c;
                         c = data.at(++(*i));
+                    }
+                    c = data.at(++(*i));
+                    if (c != ';') {
+                        std::cerr << "[Dragon] " << "Invalid value: " << value << std::endl;
+                        exit(1);
                     }
                     StringEntry entry;
                     entry.setKey(key);
@@ -387,6 +448,10 @@ namespace DragonConfig {
                 c = data.at(++(*i));
             }
             c = data.at(++(*i));
+            if (c != ';') {
+                std::cerr << "[Dragon] " << "Invalid compound entry!" << std::endl;
+                exit(1);
+            }
             return compound;
         }
     };
