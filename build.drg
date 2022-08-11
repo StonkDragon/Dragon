@@ -1,24 +1,26 @@
-compiler: "clang++";
-outputDir: "build";
-target: "dragon";
-sourceDir: "src";
-units: [
-    "dragon.cpp";
-];
-flags: [
-    "-Wall";
-    "-Wextra";
-    "-Werror";
-    "-pedantic";
-    "-std=gnu++17";
-];
-includes: [
-    "src";
-];
-libs: [];
-libraryPaths: [];
-defines: [
-    "VERSION=\"1.4.0\"";
-];
-preBuild: [];
-postBuild: [];
+build: {
+    compiler: "clang++";
+    outputDir: "build";
+    target: "dragon";
+    sourceDir: "src";
+    units: [
+        "dragon.cpp";
+    ];
+    flags: [
+        "-Wall";
+        "-Wextra";
+        "-Werror";
+        "-pedantic";
+        "-std=gnu++17";
+    ];
+    includes: [
+        "src";
+    ];
+    libs: [];
+    libraryPaths: [];
+    defines: [
+        "VERSION=\"2.0\"";
+    ];
+    preBuild: [];
+    postBuild: [];
+};

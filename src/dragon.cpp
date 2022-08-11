@@ -22,176 +22,30 @@
 #define NS_OS_PREF std
 #endif
 
-namespace Dragon
-{
-    struct Build {
-        std::string compiler;
-        std::string target;
-        std::string outputDir;
-        std::string sourceDir;
-        std::string macroPrefix;
-        std::string libraryPrefix;
-        std::string libraryPathPrefix;
-        std::string includePrefix;
-        std::string outFilePrefix;
-        std::vector<std::string> units;
-        std::vector<std::string> flags;
-        std::vector<std::string> includes;
-        std::vector<std::string> libs;
-        std::vector<std::string> libraryPaths;
-        std::vector<std::string> preBuild;
-        std::vector<std::string> postBuild;
-    };
+std::string defaultConfig =
+"build: {\n"
+"    compiler: \"gcc\";\n"
+"    outputDir: \"build\";\n"
+"    target: \"main\";\n"
+"    sourceDir: \"src\";\n"
+"    units: [];\n"
+"    flags: [\n"
+"        \"-Wall\";\n"
+"        \"-Wextra\";\n"
+"        \"-Werror\";\n"
+"        \"-pedantic\";\n"
+"    ];\n"
+"    includes: [\n"
+"        \"src\";\n"
+"    ];\n"
+"    libs: [];\n"
+"    libraryPaths: [];\n"
+"    defines: [];\n"
+"    preBuild: [];\n"
+"    postBuild: [];\n"
+"};\n";
 
-    struct Config {
-        static Build parse(const std::string& config);
-    };
-
-    Build Config::parse(const std::string& config) {
-        int configSize = config.size();
-        bool inStr = false;
-        std::string data;
-        for (int i = 0; i < configSize; ++i) {
-            if (!inStr && config.at(i) == ' ') continue;
-            if (config.at(i) == '"' && config.at(i - 1) != '\\') {
-                inStr = !inStr;
-                continue;
-            }
-            if (config.at(i) == '\n') {
-                inStr = false;
-                continue;
-            }
-            char c = config.at(i);
-            data += c;
-        }
-        int dataSize = data.size();
-        std::string str;
-        Build build;
-
-        for (int i = 0; i < dataSize; i++) {
-            char c = data.at(i);
-
-            if (c == ';') {
-                str.clear();
-                continue;
-            }
-
-            if (c == ':') {
-                std::string key = str;
-                str.clear();
-                c = data.at(++i);
-                if (c == '[') {
-                    std::vector<std::string> values;
-                    c = data.at(++i);
-                    while (c != ']') {
-                        std::string next;
-                        while (c != ';') {
-                            next += c;
-                            c = data.at(++i);
-                            if (c == ';') {
-                                values.push_back(next);
-                                break;
-                            }
-                        }
-                        c = data.at(++i);
-                    }
-                    if (key == "units") {
-                        for (auto& value : values) {
-                            build.units.push_back(value);
-                        }
-                    } else if (key == "flags") {
-                        for (auto& value : values) {
-                            build.flags.push_back(value);
-                        }
-                    } else if (key == "includes") {
-                        for (auto& value : values) {
-                            build.includes.push_back(value);
-                        }
-                    } else if (key == "libs") {
-                        for (auto& value : values) {
-                            build.libs.push_back(value);
-                        }
-                    } else if (key == "defines") {
-                        for (auto& value : values) {
-                            build.flags.push_back("-D" + value);
-                        }
-                    } else if (key == "libraryPaths") {
-                        for (auto& value : values) {
-                            build.libraryPaths.push_back(value);
-                        }
-                    } else if (key == "preBuild") {
-                        for (auto& value : values) {
-                            build.preBuild.push_back(value);
-                        }
-                    } else if (key == "postBuild") {
-                        for (auto& value : values) {
-                            build.postBuild.push_back(value);
-                        }
-                        
-                    } else if (key == "compiler") {
-                        build.compiler = values.at(0);
-                    } else if (key == "target") {
-                        build.target = values.at(0);
-                    } else if (key == "outputDir") {
-                        build.outputDir = values.at(0);
-                    } else if (key == "sourceDir") {
-                        build.sourceDir = values.at(0);
-                    } else if (key == "macroPrefix") {
-                        build.macroPrefix = values.at(0);
-                    } else if (key == "libraryPrefix") {
-                        build.libraryPrefix = values.at(0);
-                    } else if (key == "libraryPathPrefix") {
-                        build.libraryPathPrefix = values.at(0);
-                    } else if (key == "includePrefix") {
-                        build.includePrefix = values.at(0);
-                    } else if (key == "outFilePrefix") {
-                        build.outFilePrefix = values.at(0);
-                    } else {
-                        std::cerr << "[Dragon] " << "Unknown list: " << key << std::endl;
-                        exit(1);
-                    }
-                } else {
-                    std::string value = "";
-                    while (c != ';') {
-                        value += c;
-                        c = data.at(++i);
-                    }
-                    if (key == "compiler") {
-                        build.compiler = value;
-                    } else if (key == "target") {
-                        build.target = value;
-                    } else if (key == "outputDir") {
-                        build.outputDir = value;
-                    } else if (key == "target") {
-                        build.target = value;
-                    } else if (key == "sourceDir") {
-                        build.sourceDir = value;
-                    } else if (key == "macroPrefix") {
-                        build.macroPrefix = value;
-                    } else if (key == "libraryPrefix") {
-                        build.libraryPrefix = value;
-                    } else if (key == "libraryPathPrefix") {
-                        build.libraryPathPrefix = value;
-                    } else if (key == "includePrefix") {
-                        build.includePrefix = value;
-                    } else if (key == "outFilePrefix") {
-                        build.outFilePrefix = value;
-                    } else {
-                        std::cerr << "[Dragon] " << "Unknown key: " << key << std::endl;
-                        exit(1);
-                    }
-                }
-                str.clear();
-                continue;
-            }
-
-            str += c;
-        }
-
-        return build;
-    }
-
-} // namespace Dragon
+#include "Config.hpp"
 
 void usage(std::string progName, NS_OS_PREF::ostream& sink) {
     sink << "Usage: " << progName << " <command> [options]" << std::endl;
@@ -204,7 +58,7 @@ void usage(std::string progName, NS_OS_PREF::ostream& sink) {
     sink << "  version   Show the version" << std::endl;
     sink << std::endl;
     sink << "Options:" << std::endl;
-    sink << "  -c, --config <path>         Path to config file" << std::endl;
+    sink << "  -c, --buildConfig <path>         Path to buildConfig file" << std::endl;
     sink << "  -compiler <compiler>        Override compiler" << std::endl;
     sink << "  -outputDir <dir>            Override output directory" << std::endl;
     sink << "  -target <name>              Override output file" << std::endl;
@@ -262,7 +116,8 @@ std::string cmd_build(std::string& configFile) {
         std::cerr << "[Dragon] " << "Have you forgot to run 'dragon init'?" << std::endl;
         exit(1);
     }
-
+    
+    Dragon::Config config;
     FILE* fp = fopen(configFile.c_str(), "r");
     if (!fp) {
         std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
@@ -271,167 +126,174 @@ std::string cmd_build(std::string& configFile) {
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
+
     char* buf = new char[size + 1];
     fread(buf, 1, size, fp);
     buf[size] = '\0';
     fclose(fp);
-    std::string config(buf);
+    std::string configStr(buf);
+
+    config.parse(configStr);
+    Dragon::CompoundEntry buildConfig = config.getCompound("build");
     delete[] buf;
-    Dragon::Build buildConfig = Dragon::Config::parse(config);
     
-    if (buildConfig.units.size() == 0) {
+    if (buildConfig.getList("units").size() == 0) {
         std::cerr << "[Dragon] " << "No compilation units defined!" << std::endl;
         exit(1);
     }
 
     if (overrideCompiler) {
-        buildConfig.compiler = compiler;
+        buildConfig.setString("compiler", compiler);
     }
     if (overrideOutputDir) {
-        buildConfig.outputDir = outputDir;
+        buildConfig.setString("outputDir", outputDir);
     }
     if (overrideTarget) {
-        buildConfig.target = target;
+        buildConfig.setString("target", target);
     }
     if (overrideSourceDir) {
-        buildConfig.sourceDir = sourceDir;
+        buildConfig.setString("sourceDir", sourceDir);
     }
     if (overrideMacroPrefix) {
-        buildConfig.macroPrefix = macroPrefix;
+        buildConfig.setString("macroPrefix", macroPrefix);
     }
     if (overrideLibraryPrefix) {
-        buildConfig.libraryPrefix = libraryPrefix;
+        buildConfig.setString("libraryPrefix", libraryPrefix);
     }
     if (overrideLibraryPathPrefix) {
-        buildConfig.libraryPathPrefix = libraryPathPrefix;
+        buildConfig.setString("libraryPathPrefix", libraryPathPrefix);
     }
     if (overrideIncludePrefix) {
-        buildConfig.includePrefix = includePrefix;
+        buildConfig.setString("includePrefix", includePrefix);
     }
     if (overrideOutFilePrefix) {
-        buildConfig.outFilePrefix = outFilePrefix;
+        buildConfig.setString("outFilePrefix", outFilePrefix);
     }
-    if (buildConfig.macroPrefix.size() == 0) {
-        buildConfig.macroPrefix = "-D";
+    if (buildConfig.getStringOrDefault("macroPrefix", "-D").getValue().size() == 0) {
+        buildConfig.setString("macroPrefix", "-D");
     }
-    if (buildConfig.libraryPrefix.size() == 0) {
-        buildConfig.libraryPrefix = "-l";
+    if (buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue().size() == 0) {
+        buildConfig.setString("libraryPrefix", "-l");
     }
-    if (buildConfig.libraryPathPrefix.size() == 0) {
-        buildConfig.libraryPathPrefix = "-L";
+    if (buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue().size() == 0) {
+        buildConfig.setString("libraryPathPrefix", "-L");
     }
-    if (buildConfig.includePrefix.size() == 0) {
-        buildConfig.includePrefix = "-I";
+    if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue().size() == 0) {
+        buildConfig.setString("includePrefix", "-I");
     }
-    if (buildConfig.outFilePrefix.size() == 0) {
-        buildConfig.outFilePrefix = "-o";
+    if (buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue().size() == 0) {
+        buildConfig.setString("outFilePrefix", "-o");
     }
-    std::string cmd = buildConfig.compiler;
+    std::string cmd = buildConfig.getStringOrDefault("compiler", "clang").getValue();
     cmd += " ";
-    for (auto flag : buildConfig.flags) {
-        cmd += flag;
+    for (u_long i = 0; i < buildConfig.getList("flags").size(); i++) {
+        cmd += buildConfig.getList("flags").get(i);
         cmd += " ";
     }
     for (auto flag : customFlags) {
         cmd += flag;
         cmd += " ";
     }
+    for (u_long i = 0; i < buildConfig.getList("defines").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("macroPrefix", "-D").getValue();
+        cmd += buildConfig.getList("defines").get(i);
+        cmd += " ";
+    }
     for (auto define : customDefines) {
-        if (buildConfig.macroPrefix == DRAGON_UNSUPPORTED_STR) {
+        if (buildConfig.getStringOrDefault("macroPrefix", "-D").getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Macro prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.macroPrefix;
+            cmd += buildConfig.getStringOrDefault("macroPrefix", "-D").getValue();
             cmd += define;
             cmd += " ";
         }
     }
-    for (auto libDir : buildConfig.libraryPaths) {
-        cmd += buildConfig.libraryPathPrefix;
-        cmd += libDir;
+    for (u_long i = 0; i < buildConfig.getList("libraryPaths").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue();
+        cmd += buildConfig.getList("libraryPaths").get(i);
         cmd += " ";
     }
     for (auto libDir : customLibraryPaths) {
-        cmd += buildConfig.libraryPathPrefix;
+        cmd += buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue();
         cmd += libDir;
         cmd += " ";
     }
-    for (auto lib : buildConfig.libs) {
-        cmd += buildConfig.libraryPrefix;
-        cmd += lib;
+    for (u_long i = 0; i < buildConfig.getList("libs").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
+        cmd += buildConfig.getList("libs").get(i);
         cmd += " ";
     }
     for (auto lib : customLibs) {
-        cmd += buildConfig.libraryPrefix;
+        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
         cmd += lib;
         cmd += " ";
     }
-    for (auto include : buildConfig.includes) {
-        if (buildConfig.includePrefix == DRAGON_UNSUPPORTED_STR) {
+    for (u_long i = 0; i < buildConfig.getList("includes").size(); i++) {
+        if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.includePrefix;
-            cmd += include;
+            cmd += buildConfig.getStringOrDefault("includePrefix", "-I").getValue();
+            cmd += buildConfig.getList("includes").get(i);
             cmd += " ";
         }
     }
     for (auto include : customIncludes) {
-        if (buildConfig.includePrefix == DRAGON_UNSUPPORTED_STR) {
+        if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.includePrefix;
+            cmd += buildConfig.getStringOrDefault("includePrefix", "-I").getValue();
             cmd += include;
             cmd += " ";
         }
     }
-    for (auto unit : buildConfig.units) {
-        cmd += buildConfig.sourceDir;
+    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
         cmd += NS_FS_PREF::filesystem::path::preferred_separator;
-        cmd += unit;
+        cmd += buildConfig.getList("units").get(i);
         cmd += " ";
     }
     for (auto unit : customUnits) {
-        cmd += buildConfig.sourceDir;
+        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
         cmd += NS_FS_PREF::filesystem::path::preferred_separator;
         cmd += unit;
         cmd += " ";
     }
-    std::string outputFile = buildConfig.outputDir;
+    std::string outputFile = buildConfig.getStringOrDefault("outputDir", "build").getValue();
     outputFile += NS_FS_PREF::filesystem::path::preferred_separator;
-    outputFile += buildConfig.target;
+    outputFile += buildConfig.getStringOrDefault("target", "main").getValue();
 
-    // TODO: Make this customizable
-    cmd += buildConfig.outFilePrefix;
+    cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
     cmd += " ";
     cmd += outputFile;
     cmd += " ";
 
-    bool outDirExists = NS_FS_PREF::filesystem::exists(buildConfig.outputDir);
+    bool outDirExists = NS_FS_PREF::filesystem::exists(buildConfig.getStringOrDefault("outputDir", "build").getValue());
     if (outDirExists) {
-        if (buildConfig.outputDir == ".") {
+        if (buildConfig.getStringOrDefault("outputDir", "build").getValue() == ".") {
             std::cerr << "[Dragon] " << "Cannot build in current directory" << std::endl;
             exit(1);
         }
-        NS_FS_PREF::filesystem::remove_all(buildConfig.outputDir);
+        NS_FS_PREF::filesystem::remove_all(buildConfig.getStringOrDefault("outputDir", "build").getValue());
     }
     try {
-        NS_FS_PREF::filesystem::create_directories(buildConfig.outputDir);
+        NS_FS_PREF::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue());
     } catch (NS_FS_PREF::filesystem::filesystem_error& e) {
-        std::cerr << "Failed to create output directory: " << buildConfig.outputDir << std::endl;
+        std::cerr << "Failed to create output directory: " << buildConfig.getStringOrDefault("outputDir", "build").getValue() << std::endl;
         exit(1);
     }
 
-    bool sourceDirExists = NS_FS_PREF::filesystem::exists(buildConfig.sourceDir);
+    bool sourceDirExists = NS_FS_PREF::filesystem::exists(buildConfig.getStringOrDefault("sourceDir", "src").getValue());
     if (!sourceDirExists) {
-        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.sourceDir << std::endl;
+        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
         exit(1);
     }
     std::string cmdStr = cmd;
     std::cout << "[Dragon] " << cmdStr << std::endl;
-    for (auto preBuild : buildConfig.preBuild) {
-        std::cout << "[Dragon] Running Prebuild command: " << preBuild << std::endl;
-        int ret = system(preBuild.c_str());
+    for (u_long i = 0; i < buildConfig.getList("preBuild").size(); i++) {
+        std::cout << "[Dragon] Running Prebuild command: " << buildConfig.getList("preBuild").get(i) << std::endl;
+        int ret = system(buildConfig.getList("preBuild").get(i).c_str());
         if (ret != 0) {
-            std::cerr << "[Dragon] " << "Pre-build command failed: " << preBuild << std::endl;
+            std::cerr << "[Dragon] " << "Pre-build command failed: " << buildConfig.getList("preBuild").get(i) << std::endl;
             exit(1);
         }
     }
@@ -445,11 +307,11 @@ std::string cmd_build(std::string& configFile) {
         std::cout << buf2;
     }
     pclose(cmdPipe);
-    for (auto postBuild : buildConfig.postBuild) {
-        std::cout << "[Dragon] Running Postbuild command: " << postBuild << std::endl;
-        int ret = system(postBuild.c_str());
+    for (u_long i = 0; i < buildConfig.getList("postBuild").size(); i++) {
+        std::cout << "[Dragon] Running Postbuild command: " << buildConfig.getList("postBuild").get(i) << std::endl;
+        int ret = system(buildConfig.getList("postBuild").get(i).c_str());
         if (ret != 0) {
-            std::cerr << "[Dragon] " << "Post-build command failed: " << postBuild << std::endl;
+            std::cerr << "[Dragon] " << "Post-build command failed: " << buildConfig.getList("postBuild").get(i) << std::endl;
             exit(1);
         }
     }
@@ -461,106 +323,94 @@ void cmd_init(std::string& configFile) {
         std::cout << "[Dragon] " << "Config file already exists." << std::endl;
         return;
     }
-    std::ofstream config(configFile);
-    if (overrideCompiler) {
-        config << "compiler: \"" << compiler << "\";" << std::endl;
+    std::ofstream def(configFile);
+
+    def << "build: {\n";
+    def << "  compiler: \"" << (overrideCompiler ? compiler : "gcc") << "\"\n";
+    def << "  sourceDir: \"" << (overrideSourceDir ? sourceDir : "src") << "\";\n";
+    def << "  outputDir: \"" << (overrideOutputDir ? outputDir : "build") << "\";\n";
+    def << "  target: \"" << (overrideTarget ? target : "main") << "\";\n";
+    if (customIncludes.size() > 0) {
+        def << "  includes: [\n";
+        for (auto include : customIncludes) {
+            def << "    \"" << include << "\";\n";
+        }
+        def << "];\n";
     } else {
-        config << "compiler: \"gcc\";" << std::endl;
+        def << "  includes: [];\n";
     }
-    if (overrideOutputDir) {
-        config << "outputDir: \"" << outputDir << "\";" << std::endl;
-    } else {
-        config << "outputDir: \"build\";" << std::endl;
-    }
-    if (overrideTarget) {
-        config << "target: \"" << target << "\";" << std::endl;
-    } else {
-        config << "target: \"main\";" << std::endl;
-    }
-    if (overrideSourceDir) {
-        config << "sourceDir: \"" << sourceDir << "\";" << std::endl;
-    } else {
-        config << "sourceDir: \"src\";" << std::endl;
-    }
-    if (customUnits.size() == 0) {
-        config << "units: [];" << std::endl;
-    } else {
-        config << "units: [" << std::endl;
+    if (customUnits.size() > 0) {
+        def << "  units: [\n";
         for (auto unit : customUnits) {
-            config << "    \"" << unit << "\";" << std::endl;
+            def << "    \"" << unit << "\";\n";
         }
-        config << "];" << std::endl;
-    }
-    if (customFlags.size() == 0) {
-        config << "flags: [];" << std::endl;
+        def << "  ];\n";
     } else {
-        config << "flags: [" << std::endl;
-        for (auto flag : customFlags) {
-            config << "    \"" << flag << "\";" << std::endl;
+        def << "  units: [];\n";
+    }
+    def << "  outFilePrefix: \"" << (overrideOutFilePrefix ? outFilePrefix : "-o") << "\";\n";
+    def << "  libraryPathPrefix: \"" << (overrideLibraryPathPrefix ? libraryPathPrefix : "-L") << "\";\n";
+    def << "  libraryPrefix: \"" << (overrideLibraryPrefix ? libraryPrefix : "-l") << "\";\n";
+    def << "  macroPrefix: \"" << (overrideMacroPrefix ? macroPrefix : "-D") << "\";\n";
+    def << "  includePrefix: \"" << (overrideIncludePrefix ? includePrefix : "-I") << "\";\n";
+
+    if (customLibraryPaths.size() > 0) {
+        def << "  libraryPaths: [\n";
+        for (auto libraryPath : customLibraryPaths) {
+            def << "    \"" << libraryPath << "\";\n";
         }
-        config << "];" << std::endl;
-    }
-    config << "includes: [" << std::endl;
-    if (overrideSourceDir) {
-        config << "    \"" << sourceDir << "\";" << std::endl;
+        def << "  ];\n";    
     } else {
-        config << "    \"src\";" << std::endl;
+        def << "  libraryPaths: [];\n";
     }
-    for (auto include : customIncludes) {
-        config << "    \"" << include << "\";" << std::endl;
-    }
-    config << "];" << std::endl;
-    if (customLibs.size() == 0) {
-        config << "libs: [];" << std::endl;
-    } else {
-        config << "libs: [" << std::endl;
-        for (auto lib : customLibs) {
-            config << "    \"" << lib << "\";" << std::endl;
+    if (customLibs.size() > 0) {
+        def << "  libs: [\n";
+        for (auto library : customLibs) {
+            def << "    \"" << library << "\";\n";
         }
-        config << "];" << std::endl;
-    }
-    if (customLibraryPaths.size() == 0) {
-        config << "libraryPaths: [];" << std::endl;
+        def << "  ];\n";    
     } else {
-        config << "libraryPaths: [" << std::endl;
-        for (auto libDir : customLibraryPaths) {
-            config << "    \"" << libDir << "\";" << std::endl;
-        }
-        config << "];" << std::endl;
+        def << "  libs: [];\n";
     }
-    if (customDefines.size() == 0) {
-        config << "defines: [];" << std::endl;
-    } else {
-        config << "defines: [" << std::endl;
+    if (customDefines.size() > 0) {
+        def << "  defines: [\n";
         for (auto define : customDefines) {
-            config << "    \"" << define << "\";" << std::endl;
+            def << "    \"" << define << "\";\n";
         }
-        config << "];" << std::endl;
-    }
-    if (customPreBuilds.size() == 0) {
-        config << "preBuild: [];" << std::endl;
+        def << "  ];\n";    
     } else {
-        config << "preBuild: [" << std::endl;
+        def << "  defines: [];\n";
+    }
+    if (customFlags.size() > 0) {
+        def << "  flags: [\n";
+        for (auto flag : customFlags) {
+            def << "    \"" << flag << "\";\n";
+        }
+        def << "  ];\n";    
+    } else {
+        def << "  flags: [];\n";
+    }
+    if (customPreBuilds.size() > 0) {
+        def << "  preBuild: [\n";
         for (auto preBuild : customPreBuilds) {
-            config << "    \"" << preBuild << "\";" << std::endl;
+            def << "    \"" << preBuild << "\";\n";
         }
-        config << "];" << std::endl;
-    }
-    if (customPostBuilds.size() == 0) {
-        config << "postBuild: [];" << std::endl;
+        def << "  ];\n";    
     } else {
-        config << "postBuild: [" << std::endl;
-        for (auto postBuild : customPostBuilds) {
-            config << "    \"" << postBuild << "\";" << std::endl;
-        }
-        config << "];" << std::endl;
+        def << "  preBuild: [];\n";
     }
-    config << "macroPrefix: \"" << macroPrefix << "\";" << std::endl;
-    config << "libraryPrefix: \"" << libraryPrefix << "\";" << std::endl;
-    config << "libraryPathPrefix: \"" << libraryPathPrefix << "\";" << std::endl;
-    config << "includePrefix: \"" << includePrefix << "\";" << std::endl;
-    config << "outFilePrefix: \"" << outFilePrefix << "\";" << std::endl;
-    config.close();
+    if (customPostBuilds.size() > 0) {
+        def << "  postBuild: [\n";
+        for (auto postBuild : customPostBuilds) {
+            def << "    \"" << postBuild << "\";\n";
+        }
+        def << "  ];\n";    
+    } else {
+        def << "  postBuild: [];\n";
+    }
+    def << "}" << std::endl;
+
+    def.close();
     std::cout << "[Dragon] " << "Config file created at " << configFile << std::endl;
 }
 
@@ -754,28 +604,31 @@ void cmd_clean(std::string& configFile) {
         exit(1);
     }
 
+    Dragon::Config buildConfig;
     FILE* fp = fopen(configFile.c_str(), "r");
     if (!fp) {
-        std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
+        std::cerr << "[Dragon] " << "Failed to open buildConfig file: " << configFile << std::endl;
         exit(1);
     }
     fseek(fp, 0, SEEK_END);
     size_t size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
+
     char* buf = new char[size + 1];
     fread(buf, 1, size, fp);
     buf[size] = '\0';
     fclose(fp);
-    std::string config(buf);
+    std::string configStr(buf);
+
+    buildConfig.parse(configStr);
     delete[] buf;
-    Dragon::Build buildConfig = Dragon::Config::parse(config);
 
     std::string validation = "dragon-v" + std::string(VERSION);
     std::cout << "\x07";
     std::cout << "[Dragon] " << "Warning: This action is not reversible!" << std::endl;
     std::cout << "[Dragon] " << "All files in the directories below will be deleted:" << std::endl;
-    std::cout << "[Dragon] " << "    " << buildConfig.outputDir << std::endl;
-    std::cout << "[Dragon] " << "    " << buildConfig.sourceDir << std::endl;
+    std::cout << "[Dragon] " << "    " << buildConfig.getStringOrDefault("outputDir", "build").getValue() << std::endl;
+    std::cout << "[Dragon] " << "    " << buildConfig.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
     std::cout << "[Dragon] " << "Are you sure you want to continue?" << std::endl;
     std::cout << "[Dragon] " << "Please type '" << validation << "' to confirm" << std::endl;
     std::cout << "[Dragon] " << "> ";
@@ -788,16 +641,27 @@ void cmd_clean(std::string& configFile) {
     }
 
     std::cout << "[Dragon] " << "Cleaning..." << std::endl;
-    std::string outputDir = buildConfig.outputDir;
-    std::string sourceDir = buildConfig.sourceDir;
+    std::string outputDir = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+    std::string sourceDir = buildConfig.getStringOrDefault("sourceDir", "src").getValue();
     NS_FS_PREF::filesystem::remove_all(outputDir);
     NS_FS_PREF::filesystem::remove_all(sourceDir);
     NS_FS_PREF::filesystem::remove("build.drg");
     std::cout << "[Dragon] " << "Cleaned" << std::endl;
 }
 
+void handle_signal(int signal) {
+    std::cout << "[Dragon] " << "Caught signal " << signal << std::endl;
+    std::cout << "[Dragon] " << "Error: " << strerror(errno) << std::endl;
+    exit(0);
+}
+
 int main(int argc, const char* argv[])
 {
+    signal(SIGSEGV, handle_signal);
+    signal(SIGABRT, handle_signal);
+    signal(SIGILL, handle_signal);
+    signal(SIGFPE, handle_signal);
+
     std::string configFile = "build.drg";
 
     if (argc < 2) {
@@ -809,11 +673,11 @@ int main(int argc, const char* argv[])
 
     for (int i = 2; i < argc; ++i) {
         std::string arg = std::string(argv[i]);
-        if (arg == "-c" || arg == "--config") {
+        if (arg == "-c" || arg == "--buildConfig") {
             if (i + 1 < argc) {
                 configFile = std::string(argv[++i]);
             } else {
-                std::cerr << "[Dragon] " << "No config file specified" << std::endl;
+                std::cerr << "[Dragon] " << "No buildConfig file specified" << std::endl;
                 exit(1);
             }
         } else if (arg == "-compiler") {
@@ -892,7 +756,7 @@ int main(int argc, const char* argv[])
             }
         } else if (arg == "-preset") {
             if (command != "init") {
-                std::cerr << "[Dragon] " << "Presets can only be used to initialize a config file" << std::endl;
+                std::cerr << "[Dragon] " << "Presets can only be used to initialize a buildConfig file" << std::endl;
                 exit(1);
             }
             if (i + 1 < argc) {
