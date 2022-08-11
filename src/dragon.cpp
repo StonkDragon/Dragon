@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #ifdef _WIN32
 #error "Windows is currently not supported."
