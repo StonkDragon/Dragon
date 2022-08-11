@@ -15,8 +15,10 @@
 
 #ifdef __APPLE__
 #define NS_FS_PREF std::__fs
+#define NS_OS_PREF std::__1
 #else
 #define NS_FS_PREF std
+#define NS_OS_PREF std
 #endif
 
 namespace Dragon
@@ -190,7 +192,7 @@ namespace Dragon
 
 } // namespace Dragon
 
-void usage(std::string progName, std::__1::ostream& sink) {
+void usage(std::string progName, NS_OS_PREF::ostream& sink) {
     sink << "Usage: " << progName << " <command> [options]" << std::endl;
     sink << "Commands:" << std::endl;
     sink << "  build     Build the project" << std::endl;

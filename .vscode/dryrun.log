@@ -1,7 +1,7 @@
-make --dry-run --always-make --keep-going --print-directory
+make --dry-run --keep-going --print-directory
 make: Entering directory `/Users/paul/Coding/Dragon'
 mkdir -p build
-clang++ -Wall -Wextra -Werror -pedantic src/dragon.cpp -o build/dragon
+clang++ -Wall -Wextra -Werror -pedantic src/dragon.cpp -o build/dragon -std=gnu++17
 ./build/dragon build
 make: Leaving directory `/Users/paul/Coding/Dragon'
  
