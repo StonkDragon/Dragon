@@ -6,6 +6,11 @@
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+#ifdef _WIN32
+#error "Windows is currently not supported."
+#endif
 
 #ifndef VERSION
 #define VERSION "0.0.0"
@@ -22,30 +27,7 @@
 #define NS_OS_PREF std
 #endif
 
-std::string defaultConfig =
-"build: {\n"
-"    compiler: \"gcc\";\n"
-"    outputDir: \"build\";\n"
-"    target: \"main\";\n"
-"    sourceDir: \"src\";\n"
-"    units: [];\n"
-"    flags: [\n"
-"        \"-Wall\";\n"
-"        \"-Wextra\";\n"
-"        \"-Werror\";\n"
-"        \"-pedantic\";\n"
-"    ];\n"
-"    includes: [\n"
-"        \"src\";\n"
-"    ];\n"
-"    libs: [];\n"
-"    libraryPaths: [];\n"
-"    defines: [];\n"
-"    preBuild: [];\n"
-"    postBuild: [];\n"
-"};\n";
-
-#include "Config.hpp"
+#include "DragonConfig.hpp"
 
 void usage(std::string progName, NS_OS_PREF::ostream& sink) {
     sink << "Usage: " << progName << " <command> [options]" << std::endl;
@@ -56,9 +38,10 @@ void usage(std::string progName, NS_OS_PREF::ostream& sink) {
     sink << "  clean     Clean all project files" << std::endl;
     sink << "  help      Show this help" << std::endl;
     sink << "  version   Show the version" << std::endl;
+    sink << "  config    Show the current config" << std::endl;
     sink << std::endl;
     sink << "Options:" << std::endl;
-    sink << "  -c, --buildConfig <path>         Path to buildConfig file" << std::endl;
+    sink << "  -c, --config <path>         Path to config file" << std::endl;
     sink << "  -compiler <compiler>        Override compiler" << std::endl;
     sink << "  -outputDir <dir>            Override output directory" << std::endl;
     sink << "  -target <name>              Override output file" << std::endl;
@@ -117,25 +100,9 @@ std::string cmd_build(std::string& configFile) {
         exit(1);
     }
     
-    Dragon::Config config;
-    FILE* fp = fopen(configFile.c_str(), "r");
-    if (!fp) {
-        std::cerr << "[Dragon] " << "Failed to open config file: " << configFile << std::endl;
-        exit(1);
-    }
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char* buf = new char[size + 1];
-    fread(buf, 1, size, fp);
-    buf[size] = '\0';
-    fclose(fp);
-    std::string configStr(buf);
-
-    config.parse(configStr);
-    Dragon::CompoundEntry buildConfig = config.getCompound("build");
-    delete[] buf;
+    DragonConfig::ConfigParser parser;
+    DragonConfig::CompoundEntry root = parser.parse(configFile);
+    DragonConfig::CompoundEntry buildConfig = root.getCompound("build");
     
     if (buildConfig.getList("units").size() == 0) {
         std::cerr << "[Dragon] " << "No compilation units defined!" << std::endl;
@@ -168,21 +135,6 @@ std::string cmd_build(std::string& configFile) {
     }
     if (overrideOutFilePrefix) {
         buildConfig.setString("outFilePrefix", outFilePrefix);
-    }
-    if (buildConfig.getStringOrDefault("macroPrefix", "-D").getValue().size() == 0) {
-        buildConfig.setString("macroPrefix", "-D");
-    }
-    if (buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue().size() == 0) {
-        buildConfig.setString("libraryPrefix", "-l");
-    }
-    if (buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue().size() == 0) {
-        buildConfig.setString("libraryPathPrefix", "-L");
-    }
-    if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue().size() == 0) {
-        buildConfig.setString("includePrefix", "-I");
-    }
-    if (buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue().size() == 0) {
-        buildConfig.setString("outFilePrefix", "-o");
     }
     std::string cmd = buildConfig.getStringOrDefault("compiler", "clang").getValue();
     cmd += " ";
@@ -417,9 +369,57 @@ void cmd_init(std::string& configFile) {
 void cmd_run(std::string& configFile) {
     std::string outfile = cmd_build(configFile);
     std::string cmd = "./" + outfile;
+
+    DragonConfig::ConfigParser parser;
+    DragonConfig::CompoundEntry root = parser.parse(configFile);
+    DragonConfig::CompoundEntry run = root.getCompound("run");
+    
+    std::vector<std::string> argv;
+    std::vector<std::string> envs;
+    argv.push_back(cmd);
+    if (run != DragonConfig::CompoundEntry::Empty) {
+        DragonConfig::ListEntry args = run.getList("args");
+        DragonConfig::ListEntry env = run.getList("env");
+        if (args != DragonConfig::ListEntry::Empty) {
+            for (u_long i = 0; i < args.size(); i++) {
+                argv.push_back(args.get(i));
+            }
+        }
+        if (env != DragonConfig::ListEntry::Empty) {
+            for (u_long i = 0; i < env.size(); i++) {
+                envs.push_back(env.get(i));
+            }
+        }
+    }
+    char** envs_c = NULL;
+    envs_c = (char**) malloc(envs.size() * sizeof(char*) + 1);
+    for (u_long i = 0; i < envs.size(); i++) {
+        envs_c[i] = (char*)envs[i].c_str();
+    }
+    envs_c[envs.size()] = NULL;
+    char** argv_c = NULL;
+    argv_c = (char**) malloc(argv.size() * sizeof(char*) + 1);
+    for (u_long i = 0; i < argv.size(); i++) {
+        argv_c[i] = (char*)argv[i].c_str();
+    }
+    argv_c[argv.size()] = NULL;
     std::cout << "[Dragon] " << "Running " << cmd << std::endl;
-    int ret = system(cmd.c_str());
-    std::cout << "[Dragon] " << "Finished with exit code " << ret << std::endl;
+
+    int child = fork();
+    if (child == 0) {
+        int ret = execve(cmd.c_str(), argv_c, envs_c);
+        if (ret == -1) {
+            std::cout << "[Dragon] " << "Error: " << strerror(errno) << std::endl;
+            exit(1);
+        }
+    } else if (child > 0) {
+        wait(NULL);
+        std::cout << "[Dragon] " << "Finished!" << std::endl;
+    } else {
+        std::cerr << "[Dragon] " << "Error forking a child process!" << std::endl;
+        std::cerr << "[Dragon] " << "Error: " << strerror(errno) << std::endl;
+        exit(1);
+    }
 }
 
 bool strstarts(const std::string& str, const std::string& prefix) {
@@ -604,31 +604,15 @@ void cmd_clean(std::string& configFile) {
         exit(1);
     }
 
-    Dragon::Config buildConfig;
-    FILE* fp = fopen(configFile.c_str(), "r");
-    if (!fp) {
-        std::cerr << "[Dragon] " << "Failed to open buildConfig file: " << configFile << std::endl;
-        exit(1);
-    }
-    fseek(fp, 0, SEEK_END);
-    size_t size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-
-    char* buf = new char[size + 1];
-    fread(buf, 1, size, fp);
-    buf[size] = '\0';
-    fclose(fp);
-    std::string configStr(buf);
-
-    buildConfig.parse(configStr);
-    delete[] buf;
+    DragonConfig::ConfigParser parser;
+    DragonConfig::CompoundEntry root = parser.parse(configFile);
 
     std::string validation = "dragon-v" + std::string(VERSION);
     std::cout << "\x07";
     std::cout << "[Dragon] " << "Warning: This action is not reversible!" << std::endl;
     std::cout << "[Dragon] " << "All files in the directories below will be deleted:" << std::endl;
-    std::cout << "[Dragon] " << "    " << buildConfig.getStringOrDefault("outputDir", "build").getValue() << std::endl;
-    std::cout << "[Dragon] " << "    " << buildConfig.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
+    std::cout << "[Dragon] " << "    " << root.getStringOrDefault("outputDir", "build").getValue() << std::endl;
+    std::cout << "[Dragon] " << "    " << root.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
     std::cout << "[Dragon] " << "Are you sure you want to continue?" << std::endl;
     std::cout << "[Dragon] " << "Please type '" << validation << "' to confirm" << std::endl;
     std::cout << "[Dragon] " << "> ";
@@ -641,8 +625,8 @@ void cmd_clean(std::string& configFile) {
     }
 
     std::cout << "[Dragon] " << "Cleaning..." << std::endl;
-    std::string outputDir = buildConfig.getStringOrDefault("outputDir", "build").getValue();
-    std::string sourceDir = buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+    std::string outputDir = root.getStringOrDefault("outputDir", "build").getValue();
+    std::string sourceDir = root.getStringOrDefault("sourceDir", "src").getValue();
     NS_FS_PREF::filesystem::remove_all(outputDir);
     NS_FS_PREF::filesystem::remove_all(sourceDir);
     NS_FS_PREF::filesystem::remove("build.drg");
@@ -835,6 +819,10 @@ int main(int argc, const char* argv[])
         cmd_run(configFile);
     } else if (command == "clean") {
         cmd_clean(configFile);
+    } else if (command == "config") {
+        DragonConfig::ConfigParser parser;
+        DragonConfig::CompoundEntry root = parser.parse(configFile);
+        root.print(std::cout);
     } else {
         std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
         usage(std::string(argv[0]), std::cerr);
