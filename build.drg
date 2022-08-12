@@ -10,12 +10,12 @@ build: {
     units: [
         "dragon.cpp";
     ];
+    std: "gnu++17";
     flags: [
         "-Wall";
         "-Wextra";
         "-Werror";
         "-pedantic";
-        "-std=gnu++17";
     ];
     includes: [
         "src";

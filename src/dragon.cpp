@@ -43,6 +43,11 @@ bool isOSSupported(const std::string& os) {
     return HOSTNAME == os;
 }
 
+bool strendswith(const std::string& str, const std::string& suffix) {
+    return str.size() >= suffix.size() &&
+           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 #include "DragonConfig.hpp"
 
 void usage(std::string progName, std::ostream& sink) {
@@ -247,6 +252,14 @@ std::string cmd_build(std::string& configFile) {
     std::string outputFile = buildConfig.getStringOrDefault("outputDir", "build").getValue();
     outputFile += std::filesystem::path::preferred_separator;
     outputFile += buildConfig.getStringOrDefault("target", "main").getValue();
+
+    std::string stdlib = buildConfig.getString("std").getValue();
+
+    if (stdlib.size() > 0) {
+        cmd += "-std=";
+        cmd += stdlib;
+        cmd += " ";
+    }
 
     cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
     cmd += " ";
