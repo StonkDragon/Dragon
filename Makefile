@@ -6,4 +6,3 @@ SRC=src/dragon.cpp
 compile:
 	mkdir -p build
 	$(CC) $(CFLAGS) $(SRC) -o $(EXE) -std=gnu++17
-	./$(EXE) build

@@ -48,6 +48,15 @@ bool strendswith(const std::string& str, const std::string& suffix) {
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
+std::string dirnameFromPath(const std::string& path) {
+    std::string directory;
+    const size_t last_slash_idx = path.rfind('/');
+    if (std::string::npos != last_slash_idx) {
+        directory = path.substr(0, last_slash_idx);
+    }
+    return directory;
+}
+
 #include "DragonConfig.hpp"
 
 void usage(std::string progName, std::ostream& sink) {
@@ -60,6 +69,7 @@ void usage(std::string progName, std::ostream& sink) {
     sink << "  help      Show this help" << std::endl;
     sink << "  version   Show the version" << std::endl;
     sink << "  config    Show the current config" << std::endl;
+    sink << "  presets   List the available presets" << std::endl;
     sink << std::endl;
     sink << "Options:" << std::endl;
     sink << "  -c, --config <path>         Path to config file" << std::endl;
@@ -137,6 +147,7 @@ std::string cmd_build(std::string& configFile) {
             break;
         }
     }
+    if (targetOS.isEmpty()) osIsSupported = true;
     if (!osIsSupported) {
         std::string msg = buildConfig.getStringOrDefault("wrongOsMsg", "OS not supported!").getValue();
         std::cerr << "[Dragon] " << msg << std::endl;
@@ -237,18 +248,7 @@ std::string cmd_build(std::string& configFile) {
             cmd += " ";
         }
     }
-    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
-        cmd += std::filesystem::path::preferred_separator;
-        cmd += buildConfig.getList("units").get(i);
-        cmd += " ";
-    }
-    for (auto unit : customUnits) {
-        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
-        cmd += std::filesystem::path::preferred_separator;
-        cmd += unit;
-        cmd += " ";
-    }
+
     std::string outputFile = buildConfig.getStringOrDefault("outputDir", "build").getValue();
     outputFile += std::filesystem::path::preferred_separator;
     outputFile += buildConfig.getStringOrDefault("target", "main").getValue();
@@ -260,11 +260,6 @@ std::string cmd_build(std::string& configFile) {
         cmd += stdlib;
         cmd += " ";
     }
-
-    cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
-    cmd += " ";
-    cmd += outputFile;
-    cmd += " ";
 
     bool outDirExists = std::filesystem::exists(buildConfig.getStringOrDefault("outputDir", "build").getValue());
     if (outDirExists) {
@@ -296,18 +291,96 @@ std::string cmd_build(std::string& configFile) {
         }
     }
 
+    size_t unitSize = customUnits.size();
+
+    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
+        std::string unit = buildConfig.getList("units").get(i);
+
+        if (dirnameFromPath(unit).length() > 0) {
+            std::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue() + "/" + dirnameFromPath(unit));
+        }
+
+        std::string cmdStr = cmd;
+
+        cmdStr += "-c ";
+        
+        cmdStr += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+        cmdStr += std::filesystem::path::preferred_separator;
+        cmdStr += unit;
+        cmdStr += " ";
+
+        cmdStr += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
+        cmdStr += " ";
+        cmdStr += buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        cmdStr += std::filesystem::path::preferred_separator;
+        cmdStr += unit;
+        cmdStr += ".o ";
+
+        std::cout << "[Dragon] Building Object file " << unit << ".o" << std::endl;
+        int run = system(cmdStr.c_str());
+        if (run != 0) {
+            std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
+            exit(1);
+        }
+    }
+
+    for (size_t i = 0; i < unitSize; i++) {
+        std::string unit = customUnits.at(i);
+
+        if (dirnameFromPath(unit).length() > 0) {
+            std::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue() + "/" + dirnameFromPath(unit));
+        }
+
+        std::string cmdStr = cmd;
+
+        cmdStr += "-c ";
+        
+        cmdStr += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+        cmdStr += std::filesystem::path::preferred_separator;
+        cmdStr += unit;
+        cmdStr += " ";
+
+        cmdStr += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
+        cmdStr += " ";
+        cmdStr += buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        cmdStr += std::filesystem::path::preferred_separator;
+        cmdStr += unit;
+        cmdStr += ".o ";
+
+        std::cout << "[Dragon] Building Object file " << unit << ".o" << std::endl;
+        int run = system(cmdStr.c_str());
+        if (run != 0) {
+            std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
+            exit(1);
+        }
+    }
+
+    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        cmd += std::filesystem::path::preferred_separator;
+        cmd += buildConfig.getList("units").get(i);
+        cmd += ".o ";
+    }
+
+    for (auto unit : customUnits) {
+        cmd += buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        cmd += std::filesystem::path::preferred_separator;
+        cmd += unit;
+        cmd += ".o ";
+    }
+
+    cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
+    cmd += " ";
+    cmd += outputFile;
+    cmd += " ";
+
     std::string cmdStr = cmd;
     std::cout << "[Dragon] Running build command: " << cmdStr << std::endl;
-    FILE* cmdPipe = popen(cmdStr.c_str(), "r");
-    if (!cmdPipe) {
+    int run = system(cmdStr.c_str());
+    if (run != 0) {
         std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
-        exit(1);
+        exit(run);
     }
-    char buf2[1024];
-    while (fgets(buf2, 1024, cmdPipe)) {
-        std::cout << buf2;
-    }
-    pclose(cmdPipe);
     for (u_long i = 0; i < buildConfig.getList("postBuild").size(); i++) {
         std::cout << "[Dragon] Running postbuild command: " << buildConfig.getList("postBuild").get(i) << std::endl;
         int ret = system(buildConfig.getList("postBuild").get(i).c_str());
@@ -316,6 +389,24 @@ std::string cmd_build(std::string& configFile) {
             exit(1);
         }
     }
+
+    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
+        std::string unit;
+        unit = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        unit += std::filesystem::path::preferred_separator;
+        unit += buildConfig.getList("units").get(i);
+        unit += ".o";
+        remove(unit.c_str());
+    }
+
+    for (auto unit : customUnits) {
+        std::string unit2 = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        unit2 += std::filesystem::path::preferred_separator;
+        unit2 += unit;
+        unit2 += ".o";
+        remove(unit2.c_str());
+    }
+
     return outputFile;
 }
 
@@ -522,6 +613,17 @@ void generate_generic_main(std::string lang) {
         mainFile << "    println(\"Hello, World!\")\n";
         mainFile << "}" << std::endl;
         mainFile.close();
+    } else if (lang == "objc") {
+        std::filesystem::create_directories(sourceDir);
+        std::ofstream mainFile(sourceDir + "/main.m");
+        mainFile << "#import <Foundation/Foundation.h>\n\n";
+        mainFile << "int main() {\n";
+        mainFile << "    @autoreleasepool {\n";
+        mainFile << "        NSLog(@\"Hello, World!\");\n";
+        mainFile << "    }\n";
+        mainFile << "    return 0;\n";
+        mainFile << "}" << std::endl;
+        mainFile.close();
     } else {
         std::cerr << "[Dragon] " << "Unknown language: " << lang << std::endl;
         exit(1);
@@ -537,6 +639,8 @@ std::vector<std::string> get_presets() {
     presets.push_back("tcc-c");
     presets.push_back("sclc-scale");
     presets.push_back("kotlin-kotlin");
+    presets.push_back("clang-objc");
+    presets.push_back("gcc-objc");
     return presets;
 }
 
@@ -574,6 +678,14 @@ void load_preset(std::string& identifier) {
             outputDir = "build";
             customUnits.push_back("main.cpp");
             generate_generic_main("cpp");
+        } else if (lang == "objc") {
+            compiler = "gcc";
+            target = "main";
+            sourceDir = "src";
+            outputDir = "build";
+            customFlags.push_back("-framework Foundation");
+            customUnits.push_back("main.m");
+            generate_generic_main("objc");
         } else {
             std::cerr << "[Dragon] " << "Unsupported language with gcc: " << lang << std::endl;
             exit(1);
@@ -593,6 +705,14 @@ void load_preset(std::string& identifier) {
             outputDir = "build";
             customUnits.push_back("main.cpp");
             generate_generic_main("cpp");
+        } else if (lang == "objc") {
+            compiler = "clang";
+            target = "main";
+            sourceDir = "src";
+            outputDir = "build";
+            customFlags.push_back("-framework Foundation");
+            customUnits.push_back("main.m");
+            generate_generic_main("objc");
         } else {
             std::cerr << "[Dragon] " << "Unsupported language with clang: " << lang << std::endl;
             exit(1);
@@ -883,6 +1003,12 @@ int main(int argc, const char* argv[])
         DragonConfig::ConfigParser parser;
         DragonConfig::CompoundEntry root = parser.parse(configFile);
         root.print(std::cout);
+    } else if (command == "presets") {
+        std::vector<std::string> presets = get_presets();
+        std::cout << "Available presets: " << std::endl;
+        for (auto preset : presets) {
+            std::cout << "  " << preset << std::endl;
+        }
     } else {
         std::cerr << "[Dragon] " << "Unknown command: " << command << std::endl;
         usage(std::string(argv[0]), std::cerr);
