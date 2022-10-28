@@ -3,7 +3,7 @@ build: {
         "macos";
         "linux";
     ];
-    compiler: "clang++";
+    compiler: "g++";
     outputDir: "build";
     target: "dragon";
     sourceDir: "src";

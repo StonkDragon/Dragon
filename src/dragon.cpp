@@ -220,16 +220,6 @@ std::string cmd_build(std::string& configFile) {
         cmd += libDir;
         cmd += " ";
     }
-    for (u_long i = 0; i < buildConfig.getList("libs").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
-        cmd += buildConfig.getList("libs").get(i);
-        cmd += " ";
-    }
-    for (auto lib : customLibs) {
-        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
-        cmd += lib;
-        cmd += " ";
-    }
     for (u_long i = 0; i < buildConfig.getList("includes").size(); i++) {
         if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
@@ -295,78 +285,31 @@ std::string cmd_build(std::string& configFile) {
 
     for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
         std::string unit = buildConfig.getList("units").get(i);
-
-        if (dirnameFromPath(unit).length() > 0) {
-            std::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue() + "/" + dirnameFromPath(unit));
-        }
-
-        std::string cmdStr = cmd;
-
-        cmdStr += "-c ";
         
-        cmdStr += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
-        cmdStr += std::filesystem::path::preferred_separator;
-        cmdStr += unit;
-        cmdStr += " ";
-
-        cmdStr += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
-        cmdStr += " ";
-        cmdStr += buildConfig.getStringOrDefault("outputDir", "build").getValue();
-        cmdStr += std::filesystem::path::preferred_separator;
-        cmdStr += unit;
-        cmdStr += ".o ";
-
-        std::cout << "[Dragon] Building Object file " << unit << ".o" << std::endl;
-        int run = system(cmdStr.c_str());
-        if (run != 0) {
-            std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
-            exit(1);
-        }
+        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+        cmd += std::filesystem::path::preferred_separator;
+        cmd += unit;
+        cmd += " ";
     }
 
     for (size_t i = 0; i < unitSize; i++) {
         std::string unit = customUnits.at(i);
-
-        if (dirnameFromPath(unit).length() > 0) {
-            std::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue() + "/" + dirnameFromPath(unit));
-        }
-
-        std::string cmdStr = cmd;
-
-        cmdStr += "-c ";
         
-        cmdStr += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
-        cmdStr += std::filesystem::path::preferred_separator;
-        cmdStr += unit;
-        cmdStr += " ";
-
-        cmdStr += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
-        cmdStr += " ";
-        cmdStr += buildConfig.getStringOrDefault("outputDir", "build").getValue();
-        cmdStr += std::filesystem::path::preferred_separator;
-        cmdStr += unit;
-        cmdStr += ".o ";
-
-        std::cout << "[Dragon] Building Object file " << unit << ".o" << std::endl;
-        int run = system(cmdStr.c_str());
-        if (run != 0) {
-            std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
-            exit(1);
-        }
-    }
-
-    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("outputDir", "build").getValue();
-        cmd += std::filesystem::path::preferred_separator;
-        cmd += buildConfig.getList("units").get(i);
-        cmd += ".o ";
-    }
-
-    for (auto unit : customUnits) {
-        cmd += buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
         cmd += std::filesystem::path::preferred_separator;
         cmd += unit;
-        cmd += ".o ";
+        cmd += " ";
+    }
+    
+    for (u_long i = 0; i < buildConfig.getList("libs").size(); i++) {
+        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
+        cmd += buildConfig.getList("libs").get(i);
+        cmd += " ";
+    }
+    for (auto lib : customLibs) {
+        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
+        cmd += lib;
+        cmd += " ";
     }
 
     cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
