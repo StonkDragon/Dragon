@@ -1,7 +1,7 @@
 CFLAGS=-Wall -Wextra -Werror -pedantic
 EXE=build/dragon
 CC=clang++
-SRC=src/dragon.cpp
+SRC=src/dragon.cpp src/DragonConfig.cpp
 
 compile:
 	mkdir -p build

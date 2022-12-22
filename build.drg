@@ -9,6 +9,7 @@ build: {
     sourceDir: "src";
     units: [
         "dragon.cpp";
+        "DragonConfig.cpp";
     ];
     std: "gnu++17";
     flags: [
@@ -23,7 +24,7 @@ build: {
     libs: [];
     libraryPaths: [];
     defines: [
-        "VERSION=\"2.0\"";
+        "VERSION=\"3.0\"";
     ];
     preBuild: [];
     postBuild: [

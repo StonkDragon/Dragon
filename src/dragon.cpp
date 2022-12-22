@@ -29,20 +29,6 @@
 #define ostream __1::ostream
 #endif
 
-#ifdef __linux__
-const std::string HOSTNAME = "linux";
-#elif _WIN32
-const std::string HOSTNAME = "windows";
-#elif __APPLE__
-const std::string HOSTNAME = "macos";
-#else
-const std::string HOSTNAME = "unknown";
-#endif
-
-bool isOSSupported(const std::string& os) {
-    return HOSTNAME == os;
-}
-
 bool strendswith(const std::string& str, const std::string& suffix) {
     return str.size() >= suffix.size() &&
            str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
@@ -135,115 +121,99 @@ std::string cmd_build(std::string& configFile) {
     }
     
     DragonConfig::ConfigParser parser;
-    DragonConfig::CompoundEntry root = parser.parse(configFile);
-    DragonConfig::CompoundEntry buildConfig = root.getCompound(buildConfigRootEntry);
+    DragonConfig::CompoundEntry* root = parser.parse(configFile);
+    DragonConfig::CompoundEntry* buildConfig = root->getCompound(buildConfigRootEntry);
 
-    DragonConfig::ListEntry targetOS = buildConfig.getList("osTarget");
-    bool osIsSupported = false;
-    for (u_long i = 0; i < targetOS.size(); i++) {
-        std::string os = targetOS.get(i);
-        if (isOSSupported(os)) {
-            osIsSupported = true;
-            break;
-        }
-    }
-    if (targetOS.isEmpty()) osIsSupported = true;
-    if (!osIsSupported) {
-        std::string msg = buildConfig.getStringOrDefault("wrongOsMsg", "OS not supported!").getValue();
-        std::cerr << "[Dragon] " << msg << std::endl;
-        exit(1);
-    }
-    
-    if (buildConfig.getList("units").size() == 0) {
+    if (buildConfig->getList("units")->size() == 0) {
         std::cerr << "[Dragon] " << "No compilation units defined!" << std::endl;
         exit(1);
     }
 
     if (overrideCompiler) {
-        buildConfig.setString("compiler", compiler);
+        buildConfig->setString("compiler", compiler);
     }
     if (overrideOutputDir) {
-        buildConfig.setString("outputDir", outputDir);
+        buildConfig->setString("outputDir", outputDir);
     }
     if (overrideTarget) {
-        buildConfig.setString("target", target);
+        buildConfig->setString("target", target);
     }
     if (overrideSourceDir) {
-        buildConfig.setString("sourceDir", sourceDir);
+        buildConfig->setString("sourceDir", sourceDir);
     }
     if (overrideMacroPrefix) {
-        buildConfig.setString("macroPrefix", macroPrefix);
+        buildConfig->setString("macroPrefix", macroPrefix);
     }
     if (overrideLibraryPrefix) {
-        buildConfig.setString("libraryPrefix", libraryPrefix);
+        buildConfig->setString("libraryPrefix", libraryPrefix);
     }
     if (overrideLibraryPathPrefix) {
-        buildConfig.setString("libraryPathPrefix", libraryPathPrefix);
+        buildConfig->setString("libraryPathPrefix", libraryPathPrefix);
     }
     if (overrideIncludePrefix) {
-        buildConfig.setString("includePrefix", includePrefix);
+        buildConfig->setString("includePrefix", includePrefix);
     }
     if (overrideOutFilePrefix) {
-        buildConfig.setString("outFilePrefix", outFilePrefix);
+        buildConfig->setString("outFilePrefix", outFilePrefix);
     }
-    std::string cmd = buildConfig.getStringOrDefault("compiler", "clang").getValue();
+    std::string cmd = buildConfig->getStringOrDefault("compiler", "clang")->getValue();
     cmd += " ";
-    for (u_long i = 0; i < buildConfig.getList("flags").size(); i++) {
-        cmd += buildConfig.getList("flags").get(i);
+    for (u_long i = 0; i < buildConfig->getList("flags")->size(); i++) {
+        cmd += buildConfig->getList("flags")->get(i);
         cmd += " ";
     }
     for (auto flag : customFlags) {
         cmd += flag;
         cmd += " ";
     }
-    for (u_long i = 0; i < buildConfig.getList("defines").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("macroPrefix", "-D").getValue();
-        cmd += buildConfig.getList("defines").get(i);
+    for (u_long i = 0; i < buildConfig->getList("defines")->size(); i++) {
+        cmd += buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue();
+        cmd += buildConfig->getList("defines")->get(i);
         cmd += " ";
     }
     for (auto define : customDefines) {
-        if (buildConfig.getStringOrDefault("macroPrefix", "-D").getValue() == DRAGON_UNSUPPORTED_STR) {
+        if (buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Macro prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.getStringOrDefault("macroPrefix", "-D").getValue();
+            cmd += buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue();
             cmd += define;
             cmd += " ";
         }
     }
-    for (u_long i = 0; i < buildConfig.getList("libraryPaths").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue();
-        cmd += buildConfig.getList("libraryPaths").get(i);
+    for (u_long i = 0; i < buildConfig->getList("libraryPaths")->size(); i++) {
+        cmd += buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue();
+        cmd += buildConfig->getList("libraryPaths")->get(i);
         cmd += " ";
     }
     for (auto libDir : customLibraryPaths) {
-        cmd += buildConfig.getStringOrDefault("libraryPathPrefix", "-L").getValue();
+        cmd += buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue();
         cmd += libDir;
         cmd += " ";
     }
-    for (u_long i = 0; i < buildConfig.getList("includes").size(); i++) {
-        if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue() == DRAGON_UNSUPPORTED_STR) {
+    for (u_long i = 0; i < buildConfig->getList("includes")->size(); i++) {
+        if (buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.getStringOrDefault("includePrefix", "-I").getValue();
-            cmd += buildConfig.getList("includes").get(i);
+            cmd += buildConfig->getStringOrDefault("includePrefix", "-I")->getValue();
+            cmd += buildConfig->getList("includes")->get(i);
             cmd += " ";
         }
     }
     for (auto include : customIncludes) {
-        if (buildConfig.getStringOrDefault("includePrefix", "-I").getValue() == DRAGON_UNSUPPORTED_STR) {
+        if (buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() == DRAGON_UNSUPPORTED_STR) {
             std::cerr << "[Dragon] " << "Include prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig.getStringOrDefault("includePrefix", "-I").getValue();
+            cmd += buildConfig->getStringOrDefault("includePrefix", "-I")->getValue();
             cmd += include;
             cmd += " ";
         }
     }
 
-    std::string outputFile = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+    std::string outputFile = buildConfig->getStringOrDefault("outputDir", "build")->getValue();
     outputFile += std::filesystem::path::preferred_separator;
-    outputFile += buildConfig.getStringOrDefault("target", "main").getValue();
+    outputFile += buildConfig->getStringOrDefault("target", "main")->getValue();
 
-    std::string stdlib = buildConfig.getString("std").getValue();
+    std::string stdlib = buildConfig->getString("std")->getValue();
 
     if (stdlib.size() > 0) {
         cmd += "-std=";
@@ -251,42 +221,42 @@ std::string cmd_build(std::string& configFile) {
         cmd += " ";
     }
 
-    bool outDirExists = std::filesystem::exists(buildConfig.getStringOrDefault("outputDir", "build").getValue());
+    bool outDirExists = std::filesystem::exists(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
     if (outDirExists) {
-        if (buildConfig.getStringOrDefault("outputDir", "build").getValue() == ".") {
+        if (buildConfig->getStringOrDefault("outputDir", "build")->getValue() == ".") {
             std::cerr << "[Dragon] " << "Cannot build in current directory" << std::endl;
             exit(1);
         }
-        std::filesystem::remove_all(buildConfig.getStringOrDefault("outputDir", "build").getValue());
+        std::filesystem::remove_all(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
     }
     try {
-        std::filesystem::create_directories(buildConfig.getStringOrDefault("outputDir", "build").getValue());
+        std::filesystem::create_directories(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
     } catch (std::filesystem::filesystem_error& e) {
-        std::cerr << "Failed to create output directory: " << buildConfig.getStringOrDefault("outputDir", "build").getValue() << std::endl;
+        std::cerr << "Failed to create output directory: " << buildConfig->getStringOrDefault("outputDir", "build")->getValue() << std::endl;
         exit(1);
     }
 
-    bool sourceDirExists = std::filesystem::exists(buildConfig.getStringOrDefault("sourceDir", "src").getValue());
+    bool sourceDirExists = std::filesystem::exists(buildConfig->getStringOrDefault("sourceDir", "src")->getValue());
     if (!sourceDirExists) {
-        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
+        std::cerr << "[Dragon] " << "Source directory does not exist: " << buildConfig->getStringOrDefault("sourceDir", "src")->getValue() << std::endl;
         exit(1);
     }
 
-    for (u_long i = 0; i < buildConfig.getList("preBuild").size(); i++) {
-        std::cout << "[Dragon] Running prebuild command: " << buildConfig.getList("preBuild").get(i) << std::endl;
-        int ret = system(buildConfig.getList("preBuild").get(i).c_str());
+    for (u_long i = 0; i < buildConfig->getList("preBuild")->size(); i++) {
+        std::cout << "[Dragon] Running prebuild command: " << buildConfig->getList("preBuild")->get(i) << std::endl;
+        int ret = system(buildConfig->getList("preBuild")->get(i).c_str());
         if (ret != 0) {
-            std::cerr << "[Dragon] " << "Pre-build command failed: " << buildConfig.getList("preBuild").get(i) << std::endl;
+            std::cerr << "[Dragon] " << "Pre-build command failed: " << buildConfig->getList("preBuild")->get(i) << std::endl;
             exit(1);
         }
     }
 
     size_t unitSize = customUnits.size();
 
-    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
-        std::string unit = buildConfig.getList("units").get(i);
+    for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
+        std::string unit = buildConfig->getList("units")->get(i);
         
-        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+        cmd += buildConfig->getStringOrDefault("sourceDir", "src")->getValue();
         cmd += std::filesystem::path::preferred_separator;
         cmd += unit;
         cmd += " ";
@@ -295,24 +265,24 @@ std::string cmd_build(std::string& configFile) {
     for (size_t i = 0; i < unitSize; i++) {
         std::string unit = customUnits.at(i);
         
-        cmd += buildConfig.getStringOrDefault("sourceDir", "src").getValue();
+        cmd += buildConfig->getStringOrDefault("sourceDir", "src")->getValue();
         cmd += std::filesystem::path::preferred_separator;
         cmd += unit;
         cmd += " ";
     }
     
-    for (u_long i = 0; i < buildConfig.getList("libs").size(); i++) {
-        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
-        cmd += buildConfig.getList("libs").get(i);
+    for (u_long i = 0; i < buildConfig->getList("libs")->size(); i++) {
+        cmd += buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue();
+        cmd += buildConfig->getList("libs")->get(i);
         cmd += " ";
     }
     for (auto lib : customLibs) {
-        cmd += buildConfig.getStringOrDefault("libraryPrefix", "-l").getValue();
+        cmd += buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue();
         cmd += lib;
         cmd += " ";
     }
 
-    cmd += buildConfig.getStringOrDefault("outFilePrefix", "-o").getValue();
+    cmd += buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue();
     cmd += " ";
     cmd += outputFile;
     cmd += " ";
@@ -324,26 +294,26 @@ std::string cmd_build(std::string& configFile) {
         std::cerr << "[Dragon] " << "Failed to run command: " << cmdStr << std::endl;
         exit(run);
     }
-    for (u_long i = 0; i < buildConfig.getList("postBuild").size(); i++) {
-        std::cout << "[Dragon] Running postbuild command: " << buildConfig.getList("postBuild").get(i) << std::endl;
-        int ret = system(buildConfig.getList("postBuild").get(i).c_str());
+    for (u_long i = 0; i < buildConfig->getList("postBuild")->size(); i++) {
+        std::cout << "[Dragon] Running postbuild command: " << buildConfig->getList("postBuild")->get(i) << std::endl;
+        int ret = system(buildConfig->getList("postBuild")->get(i).c_str());
         if (ret != 0) {
-            std::cerr << "[Dragon] " << "Post-build command failed: " << buildConfig.getList("postBuild").get(i) << std::endl;
+            std::cerr << "[Dragon] " << "Post-build command failed: " << buildConfig->getList("postBuild")->get(i) << std::endl;
             exit(1);
         }
     }
 
-    for (u_long i = 0; i < buildConfig.getList("units").size(); i++) {
+    for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
         std::string unit;
-        unit = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        unit = buildConfig->getStringOrDefault("outputDir", "build")->getValue();
         unit += std::filesystem::path::preferred_separator;
-        unit += buildConfig.getList("units").get(i);
+        unit += buildConfig->getList("units")->get(i);
         unit += ".o";
         remove(unit.c_str());
     }
 
     for (auto unit : customUnits) {
-        std::string unit2 = buildConfig.getStringOrDefault("outputDir", "build").getValue();
+        std::string unit2 = buildConfig->getStringOrDefault("outputDir", "build")->getValue();
         unit2 += std::filesystem::path::preferred_separator;
         unit2 += unit;
         unit2 += ".o";
@@ -454,23 +424,23 @@ void cmd_run(std::string& configFile) {
     std::string cmd = outfile;
 
     DragonConfig::ConfigParser parser;
-    DragonConfig::CompoundEntry root = parser.parse(configFile);
-    DragonConfig::CompoundEntry run = root.getCompound("run");
+    DragonConfig::CompoundEntry* root = parser.parse(configFile);
+    DragonConfig::CompoundEntry* run = root->getCompound("run");
     
     std::vector<std::string> argv;
     std::vector<std::string> envs;
     argv.push_back(cmd);
-    if (run != DragonConfig::CompoundEntry::Empty) {
-        DragonConfig::ListEntry args = run.getList("args");
-        DragonConfig::ListEntry env = run.getList("env");
-        if (args != DragonConfig::ListEntry::Empty) {
-            for (u_long i = 0; i < args.size(); i++) {
-                argv.push_back(args.get(i));
+    if (run != nullptr) {
+        DragonConfig::ListEntry* args = run->getList("args");
+        DragonConfig::ListEntry* env = run->getList("env");
+        if (args != nullptr) {
+            for (u_long i = 0; i < args->size(); i++) {
+                argv.push_back(args->get(i));
             }
         }
-        if (env != DragonConfig::ListEntry::Empty) {
-            for (u_long i = 0; i < env.size(); i++) {
-                envs.push_back(env.get(i));
+        if (env != nullptr) {
+            for (u_long i = 0; i < env->size(); i++) {
+                envs.push_back(env->get(i));
             }
         }
     }
@@ -544,17 +514,9 @@ void generate_generic_main(std::string lang) {
     } else if (lang == "scale") {
         std::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + "/main.scale");
-        mainFile << "#include \"core.scale\"\n\n";
-        mainFile << "function main()\n";
+        mainFile << "function main(): none\n";
         mainFile << "    \"Hello, World!\" puts\n";
         mainFile << "end" << std::endl;
-        mainFile.close();
-    } else if (lang == "kotlin") {
-        std::filesystem::create_directories(sourceDir);
-        std::ofstream mainFile(sourceDir + "/main.kt");
-        mainFile << "fun main() {\n";
-        mainFile << "    println(\"Hello, World!\")\n";
-        mainFile << "}" << std::endl;
         mainFile.close();
     } else if (lang == "objc") {
         std::filesystem::create_directories(sourceDir);
@@ -576,12 +538,11 @@ void generate_generic_main(std::string lang) {
 std::vector<std::string> get_presets() {
     std::vector<std::string> presets;
     presets.push_back("clang-c");
-    presets.push_back("clang-cpp");
     presets.push_back("gcc-c");
-    presets.push_back("gcc-cpp");
     presets.push_back("tcc-c");
+    presets.push_back("clang-cpp");
+    presets.push_back("gcc-cpp");
     presets.push_back("sclc-scale");
-    presets.push_back("kotlin-kotlin");
     presets.push_back("clang-objc");
     presets.push_back("gcc-objc");
     return presets;
@@ -672,7 +633,7 @@ void load_preset(std::string& identifier) {
             std::cerr << "[Dragon] " << "Unsupported language with tcc: " << lang << std::endl;
             exit(1);
         }
-    } else if (compilerArgument == "sclc" || compilerArgument == "scale") {
+    } else if (compilerArgument == "sclc") {
         if (lang == "scale") {
             compiler = "sclc";
             target = "main.scl";
@@ -682,26 +643,6 @@ void load_preset(std::string& identifier) {
             generate_generic_main("scale");
         } else {
             std::cerr << "[Dragon] " << "Unsupported language with sclc: " << lang << std::endl;
-            exit(1);
-        }
-    } else if (compilerArgument == "kotlin") {
-        if (lang == "kotlin") {
-            compiler = "kotlinc-native";
-            target = "main.kexe";
-            sourceDir = "src";
-            outputDir = "build";
-            libraryPathPrefix = "-repo ";
-            libraryPrefix = "-library ";
-            macroPrefix = DRAGON_UNSUPPORTED_STR;
-            includePrefix = DRAGON_UNSUPPORTED_STR;
-            overrideMacroPrefix = true;
-            overrideLibraryPathPrefix = true;
-            overrideLibraryPrefix = true;
-            overrideIncludePrefix = true;
-            customUnits.push_back("main.kt");
-            generate_generic_main("kotlin");
-        } else {
-            std::cerr << "[Dragon] " << "Unsupported language with kotlin: " << lang << std::endl;
             exit(1);
         }
     } else {
@@ -720,14 +661,14 @@ void cmd_clean(std::string& configFile) {
     }
 
     DragonConfig::ConfigParser parser;
-    DragonConfig::CompoundEntry root = parser.parse(configFile);
+    DragonConfig::CompoundEntry* root = parser.parse(configFile);
 
     std::string validation = "dragon-v" + std::string(VERSION);
     std::cout << "\x07";
     std::cout << "[Dragon] " << "Warning: This action is not reversible!" << std::endl;
     std::cout << "[Dragon] " << "All files in the directories below will be deleted:" << std::endl;
-    std::cout << "[Dragon] " << "    " << root.getStringOrDefault("outputDir", "build").getValue() << std::endl;
-    std::cout << "[Dragon] " << "    " << root.getStringOrDefault("sourceDir", "src").getValue() << std::endl;
+    std::cout << "[Dragon] " << "    " << root->getStringOrDefault("outputDir", "build")->getValue() << std::endl;
+    std::cout << "[Dragon] " << "    " << root->getStringOrDefault("sourceDir", "src")->getValue() << std::endl;
     std::cout << "[Dragon] " << "Are you sure you want to continue?" << std::endl;
     std::cout << "[Dragon] " << "Please type '" << validation << "' to confirm" << std::endl;
     std::cout << "[Dragon] " << "> ";
@@ -740,8 +681,8 @@ void cmd_clean(std::string& configFile) {
     }
 
     std::cout << "[Dragon] " << "Cleaning..." << std::endl;
-    std::string outputDir = root.getStringOrDefault("outputDir", "build").getValue();
-    std::string sourceDir = root.getStringOrDefault("sourceDir", "src").getValue();
+    std::string outputDir = root->getStringOrDefault("outputDir", "build")->getValue();
+    std::string sourceDir = root->getStringOrDefault("sourceDir", "src")->getValue();
     std::filesystem::remove_all(outputDir);
     std::filesystem::remove_all(sourceDir);
     std::filesystem::remove("build.drg");
@@ -944,8 +885,8 @@ int main(int argc, const char* argv[])
         cmd_clean(configFile);
     } else if (command == "config") {
         DragonConfig::ConfigParser parser;
-        DragonConfig::CompoundEntry root = parser.parse(configFile);
-        root.print(std::cout);
+        DragonConfig::CompoundEntry* root = parser.parse(configFile);
+        root->print(std::cout);
     } else if (command == "presets") {
         std::vector<std::string> presets = get_presets();
         std::cout << "Available presets: " << std::endl;
