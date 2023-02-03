@@ -24,7 +24,7 @@ build: {
     libs: [];
     libraryPaths: [];
     defines: [
-        "VERSION=\"3.0\"";
+        "VERSION=\"3.1\"";
     ];
     preBuild: [];
     postBuild: [
