@@ -213,7 +213,7 @@ std::string cmd_build(std::string& configFile) {
     outputFile += std::filesystem::path::preferred_separator;
     outputFile += buildConfig->getStringOrDefault("target", "main")->getValue();
 
-    std::string stdlib = buildConfig->getString("std")->getValue();
+    std::string stdlib = buildConfig->getStringOrDefault("std", "")->getValue();
 
     if (stdlib.size() > 0) {
         cmd += "-std=";
