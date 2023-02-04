@@ -156,7 +156,7 @@ std::string cmd_build(std::string& configFile) {
     cmd += " ";
     if (buildConfig->getList("flags")) {
         for (u_long i = 0; i < buildConfig->getList("flags")->size(); i++) {
-            cmd += buildConfig->getList("flags")->get(i);
+            cmd += buildConfig->getList("flags")->getString(i)->getValue();
             cmd += " ";
         }
     }
@@ -170,7 +170,7 @@ std::string cmd_build(std::string& configFile) {
                 DRAGON_ERR << "Macro prefix not supported by compiler!" << std::endl;
             } else {
                 cmd += buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue();
-                cmd += buildConfig->getList("defines")->get(i);
+                cmd += buildConfig->getList("defines")->getString(i)->getValue();
                 cmd += " ";
             }
         }
@@ -187,7 +187,7 @@ std::string cmd_build(std::string& configFile) {
     if (buildConfig->getList("libraryPaths")) {
         for (u_long i = 0; i < buildConfig->getList("libraryPaths")->size(); i++) {
             cmd += buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue();
-            cmd += buildConfig->getList("libraryPaths")->get(i);
+            cmd += buildConfig->getList("libraryPaths")->getString(i)->getValue();
             cmd += " ";
         }
     }
@@ -202,7 +202,7 @@ std::string cmd_build(std::string& configFile) {
                 DRAGON_ERR << "Include prefix not supported by compiler!" << std::endl;
             } else {
                 cmd += buildConfig->getStringOrDefault("includePrefix", "-I")->getValue();
-                cmd += buildConfig->getList("includes")->get(i);
+                cmd += buildConfig->getList("includes")->getString(i)->getValue();
                 cmd += " ";
             }
         }
@@ -252,10 +252,10 @@ std::string cmd_build(std::string& configFile) {
 
     if (buildConfig->getList("preBuild")) {
         for (u_long i = 0; i < buildConfig->getList("preBuild")->size(); i++) {
-            std::cout << "[Dragon] Running prebuild command: " << buildConfig->getList("preBuild")->get(i) << std::endl;
-            int ret = system(buildConfig->getList("preBuild")->get(i).c_str());
+            DRAGON_LOG << "Running prebuild command: " << buildConfig->getList("preBuild")->getString(i)->getValue() << std::endl;
+            int ret = system(buildConfig->getList("preBuild")->getString(i)->getValue().c_str());
             if (ret != 0) {
-                DRAGON_ERR << "Pre-build command failed: " << buildConfig->getList("preBuild")->get(i) << std::endl;
+                DRAGON_ERR << "Pre-build command failed: " << buildConfig->getList("preBuild")->getString(i)->getValue() << std::endl;
                 exit(1);
             }
         }
@@ -265,7 +265,7 @@ std::string cmd_build(std::string& configFile) {
 
     if (buildConfig->getList("units")) {
         for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
-            std::string unit = buildConfig->getList("units")->get(i);
+            std::string unit = buildConfig->getList("units")->getString(i)->getValue();
             
             cmd += buildConfig->getStringOrDefault("sourceDir", "src")->getValue();
             cmd += std::filesystem::path::preferred_separator;
@@ -286,7 +286,7 @@ std::string cmd_build(std::string& configFile) {
     if (buildConfig->getList("libs")) {
         for (u_long i = 0; i < buildConfig->getList("libs")->size(); i++) {
             cmd += buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue();
-            cmd += buildConfig->getList("libs")->get(i);
+            cmd += buildConfig->getList("libs")->getString(i)->getValue();
             cmd += " ";
         }
     }
@@ -302,7 +302,7 @@ std::string cmd_build(std::string& configFile) {
     cmd += " ";
 
     std::string cmdStr = cmd;
-    std::cout << "[Dragon] Running build command: " << cmdStr << std::endl;
+    DRAGON_LOG << "Running build command: " << cmdStr << std::endl;
     int run = system(cmdStr.c_str());
     if (run != 0) {
         DRAGON_ERR << "Failed to run command: " << cmdStr << std::endl;
@@ -310,10 +310,10 @@ std::string cmd_build(std::string& configFile) {
     }
     if (buildConfig->getList("postBuild")) {
         for (u_long i = 0; i < buildConfig->getList("postBuild")->size(); i++) {
-            DRAGON_LOG << " Running postbuild command: " << buildConfig->getList("postBuild")->get(i) << std::endl;
-            int ret = system(buildConfig->getList("postBuild")->get(i).c_str());
+            DRAGON_LOG << "Running postbuild command: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
+            int ret = system(buildConfig->getList("postBuild")->getString(i)->getValue().c_str());
             if (ret != 0) {
-                DRAGON_ERR << "Post-build command failed: " << buildConfig->getList("postBuild")->get(i) << std::endl;
+                DRAGON_ERR << "Post-build command failed: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
                 exit(ret);
             }
         }
@@ -433,12 +433,12 @@ void cmd_run(std::string& configFile) {
         DragonConfig::ListEntry* env = run->getList("env");
         if (args) {
             for (u_long i = 0; i < args->size(); i++) {
-                argv.push_back(args->get(i));
+                argv.push_back(args->getString(i)->getValue());
             }
         }
         if (env) {
             for (u_long i = 0; i < env->size(); i++) {
-                envs.push_back(env->get(i));
+                envs.push_back(env->getString(i)->getValue());
             }
         }
     }
