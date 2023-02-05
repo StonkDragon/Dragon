@@ -491,8 +491,8 @@ std::vector<std::string> split(const std::string& str, char delim) {
 }
 
 void generate_generic_main(std::string lang) {
+    std::filesystem::create_directories(sourceDir);
     if (lang == "c") {
-        std::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.c");
         mainFile << "#include <stdio.h>\n\n";
         mainFile << "int main() {\n";
@@ -501,7 +501,6 @@ void generate_generic_main(std::string lang) {
         mainFile << "}" << std::endl;
         mainFile.close();
     } else if (lang == "cpp") {
-        std::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.cpp");
         mainFile << "#include <iostream>\n\n";
         mainFile << "int main() {\n";
@@ -510,14 +509,12 @@ void generate_generic_main(std::string lang) {
         mainFile << "}" << std::endl;
         mainFile.close();
     } else if (lang == "scale") {
-        std::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.scale");
         mainFile << "function main(): none\n";
         mainFile << "    \"Hello, World!\" puts\n";
         mainFile << "end" << std::endl;
         mainFile.close();
     } else if (lang == "objc") {
-        std::filesystem::create_directories(sourceDir);
         std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.m");
         mainFile << "#import <Foundation/Foundation.h>\n\n";
         mainFile << "int main() {\n";
@@ -526,6 +523,10 @@ void generate_generic_main(std::string lang) {
         mainFile << "    }\n";
         mainFile << "    return 0;\n";
         mainFile << "}" << std::endl;
+        mainFile.close();
+    } else if (lang == "swift") {
+        std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.swift");
+        mainFile << "print(\"Hello, World!\")" << std::endl;
         mainFile.close();
     } else {
         DRAGON_ERR << "Unknown language: " << lang << std::endl;
@@ -543,6 +544,7 @@ std::vector<std::string> get_presets() {
     presets.push_back("sclc-scale");
     presets.push_back("clang-objc");
     presets.push_back("gcc-objc");
+    presets.push_back("swiftc-swift");
     return presets;
 }
 
@@ -622,6 +624,15 @@ void load_preset(std::string& identifier) {
             generate_generic_main("scale");
         } else {
             DRAGON_ERR << "Unsupported language with sclc: " << lang << std::endl;
+            exit(1);
+        }
+    } else if (compilerArgument == "swiftc") {
+        compiler = "swiftc";
+        if (lang == "swift") {
+            customUnits.push_back("main.swift");
+            generate_generic_main("swift");
+        } else {
+            DRAGON_ERR << "Unsupported language with swiftc: " << lang << std::endl;
             exit(1);
         }
     } else {

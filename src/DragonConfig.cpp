@@ -333,13 +333,6 @@ ListEntry* ConfigParser::parseList(std::string& data, int* i) {
     return list;
 }
 
-/**
- * Returns true, if the char c has to be escaped in Dragon
-*/
-static bool canEscape(char c) {
-    return c == '"';
-}
-
 StringEntry* ConfigParser::parseString(std::string& data, int* i) {
     std::string value = "";
     char c = data.at(++(*i));
@@ -348,7 +341,7 @@ StringEntry* ConfigParser::parseString(std::string& data, int* i) {
         if (c == '"' && !escaped) break;
         if (c == '\\') {
             escaped = !escaped;
-        } else if (canEscape(c)) {
+        } else {
             escaped = false;
         }
         value += c;
