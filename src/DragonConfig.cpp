@@ -359,7 +359,6 @@ StringEntry* ConfigParser::parseString(std::string& data, int* i) {
         DRAGON_ERR << "Invalid value: '" << value << "'" << std::endl;
         return nullptr;
     }
-    DRAGON_LOG << "Parsed: " << value << std::endl;
     StringEntry* entry = new StringEntry();
     entry->setValue(value);
     return entry;
