@@ -1,5 +1,7 @@
 #include "DragonConfig.hpp"
 
+size_t strlen(char*);
+
 using namespace std;
 using namespace DragonConfig;
 
