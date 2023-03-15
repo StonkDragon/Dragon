@@ -1,8 +1,4 @@
 build: {
-    osTarget: [
-        "macos";
-        "linux";
-    ];
     compiler: "g++";
     outputDir: "build";
     target: "dragon";
@@ -21,12 +17,9 @@ build: {
     includes: [
         "src";
     ];
-    libs: [];
-    libraryPaths: [];
     defines: [
         "VERSION=\"4.0\"";
     ];
-    preBuild: [];
     postBuild: [
         "sudo mv build/dragon /usr/local/bin/dragon";
     ];
