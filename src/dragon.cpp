@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <regex>
 
 #ifdef _WIN32
 #error "Windows is currently not supported."
@@ -108,6 +109,14 @@ std::vector<std::string> customPostBuilds;
 
 std::string buildConfigRootEntry = "build";
 
+std::string replaceAll(std::string src, std::string from, std::string to) {
+    try {
+        return regex_replace(src, std::regex(from), to);
+    } catch (std::regex_error& e) {
+        return src;
+    }
+}
+
 std::string cmd_build(std::string& configFile) {
     bool configExists = std::filesystem::exists(configFile);
     if (!configExists) {
@@ -152,26 +161,25 @@ std::string cmd_build(std::string& configFile) {
     if (overrideOutFilePrefix) {
         buildConfig->setString("outFilePrefix", outFilePrefix);
     }
-    std::string cmd = buildConfig->getStringOrDefault("compiler", "clang")->getValue();
-    cmd += " ";
+    std::vector<std::string> cmd;
+    cmd.push_back(buildConfig->getStringOrDefault("compiler", "clang")->getValue());
     if (buildConfig->getList("flags")) {
         for (u_long i = 0; i < buildConfig->getList("flags")->size(); i++) {
-            cmd += buildConfig->getList("flags")->getString(i)->getValue();
-            cmd += " ";
+            cmd.push_back(buildConfig->getList("flags")->getString(i)->getValue());
         }
     }
     for (auto flag : customFlags) {
-        cmd += flag;
-        cmd += " ";
+        cmd.push_back(flag);
     }
     if (buildConfig->getList("defines")) {
         for (u_long i = 0; i < buildConfig->getList("defines")->size(); i++) {
             if (buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue() == DRAGON_UNSUPPORTED_STR) {
                 DRAGON_ERR << "Macro prefix not supported by compiler!" << std::endl;
             } else {
-                cmd += buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue();
-                cmd += buildConfig->getList("defines")->getString(i)->getValue();
-                cmd += " ";
+                cmd.push_back(
+                    buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue() +
+                    buildConfig->getList("defines")->getString(i)->getValue()
+                );
             }
         }
     }
@@ -179,31 +187,35 @@ std::string cmd_build(std::string& configFile) {
         if (buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue() == DRAGON_UNSUPPORTED_STR) {
             DRAGON_ERR << "Macro prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue();
-            cmd += define;
-            cmd += " ";
+            cmd.push_back(
+                buildConfig->getStringOrDefault("macroPrefix", "-D")->getValue() +
+                define
+            );
         }
     }
     if (buildConfig->getList("libraryPaths")) {
         for (u_long i = 0; i < buildConfig->getList("libraryPaths")->size(); i++) {
-            cmd += buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue();
-            cmd += buildConfig->getList("libraryPaths")->getString(i)->getValue();
-            cmd += " ";
+            cmd.push_back(
+                buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue() +
+                buildConfig->getList("libraryPaths")->getString(i)->getValue()
+            );
         }
     }
     for (auto libDir : customLibraryPaths) {
-        cmd += buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue();
-        cmd += libDir;
-        cmd += " ";
+        cmd.push_back(
+            buildConfig->getStringOrDefault("libraryPathPrefix", "-L")->getValue() +
+            libDir
+        );
     }
     if (buildConfig->getList("includes")) {
         for (u_long i = 0; i < buildConfig->getList("includes")->size(); i++) {
             if (buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() == DRAGON_UNSUPPORTED_STR) {
                 DRAGON_ERR << "Include prefix not supported by compiler!" << std::endl;
             } else {
-                cmd += buildConfig->getStringOrDefault("includePrefix", "-I")->getValue();
-                cmd += buildConfig->getList("includes")->getString(i)->getValue();
-                cmd += " ";
+                cmd.push_back(
+                    buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() +
+                    buildConfig->getList("includes")->getString(i)->getValue()
+                );
             }
         }
     }
@@ -211,9 +223,10 @@ std::string cmd_build(std::string& configFile) {
         if (buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() == DRAGON_UNSUPPORTED_STR) {
             DRAGON_ERR << "Include prefix not supported by compiler!" << std::endl;
         } else {
-            cmd += buildConfig->getStringOrDefault("includePrefix", "-I")->getValue();
-            cmd += include;
-            cmd += " ";
+            cmd.push_back(
+                buildConfig->getStringOrDefault("includePrefix", "-I")->getValue() +
+                include
+            );
         }
     }
 
@@ -224,9 +237,10 @@ std::string cmd_build(std::string& configFile) {
     std::string stdlib = buildConfig->getStringOrDefault("std", "")->getValue();
 
     if (stdlib.size() > 0) {
-        cmd += "-std=";
-        cmd += stdlib;
-        cmd += " ";
+        cmd.push_back(
+            "-std=" +
+            stdlib
+        );
     }
 
     bool outDirExists = std::filesystem::exists(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
@@ -267,47 +281,77 @@ std::string cmd_build(std::string& configFile) {
         for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
             std::string unit = buildConfig->getList("units")->getString(i)->getValue();
             
-            cmd += buildConfig->getStringOrDefault("sourceDir", "src")->getValue();
-            cmd += std::filesystem::path::preferred_separator;
-            cmd += unit;
-            cmd += " ";
+            cmd.push_back(
+                buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+                std::filesystem::path::preferred_separator +
+                unit
+            );
         }
     }
 
     for (size_t i = 0; i < unitSize; i++) {
         std::string unit = customUnits.at(i);
         
-        cmd += buildConfig->getStringOrDefault("sourceDir", "src")->getValue();
-        cmd += std::filesystem::path::preferred_separator;
-        cmd += unit;
-        cmd += " ";
+        cmd.push_back(
+            buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+            std::filesystem::path::preferred_separator +
+            unit
+        );
     }
     
     if (buildConfig->getList("libs")) {
         for (u_long i = 0; i < buildConfig->getList("libs")->size(); i++) {
-            cmd += buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue();
-            cmd += buildConfig->getList("libs")->getString(i)->getValue();
-            cmd += " ";
+            cmd.push_back(
+                buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue() +
+                buildConfig->getList("libs")->getString(i)->getValue()
+            );
         }
     }
     for (auto lib : customLibs) {
-        cmd += buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue();
-        cmd += lib;
-        cmd += " ";
+        cmd.push_back(
+            buildConfig->getStringOrDefault("libraryPrefix", "-l")->getValue() +
+            lib
+        );
     }
 
-    cmd += buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue();
-    cmd += " ";
-    cmd += outputFile;
-    cmd += " ";
+    cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
+    cmd.push_back(outputFile);
 
-    std::string cmdStr = cmd;
+    std::string cmdStr = "";
+    for (auto&& s : cmd) {
+        cmdStr += s + " ";
+    }
     DRAGON_LOG << "Running build command: " << cmdStr << std::endl;
+#if 1
+// compile with execv()
+    int pid = fork();
+    if (pid == 0) {
+        char** argv = (char**) malloc(sizeof(char*) * (cmd.size() + 1));
+        int argc = 0;
+        for (auto&& s : cmd) {
+            s = replaceAll(s, R"(\\")", "\"");
+            argv[argc++] = (char*) s.c_str();
+        }
+        argv[argc] = nullptr;
+        int ret = execvp(argv[0], (char* const*) argv);
+        DRAGON_ERR << "Could not run: " << std::string(strerror(errno)) << std::endl;
+        DRAGON_ERR << "ret was: " << ret << std::endl;
+        exit(ret);
+    } else if (pid) {
+        waitpid(pid, NULL, 0);
+    } else {
+        DRAGON_ERR << "Failed to fork child process for compilation! Error: " << std::string(strerror(errno)) << std::endl;
+        exit(-1);
+    }
+
+#else
+// compile with system()
     int run = system(cmdStr.c_str());
     if (run != 0) {
         DRAGON_ERR << "Failed to run command: " << cmdStr << std::endl;
         exit(run);
     }
+#endif
     if (buildConfig->getList("postBuild")) {
         for (u_long i = 0; i < buildConfig->getList("postBuild")->size(); i++) {
             DRAGON_LOG << "Running postbuild command: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
