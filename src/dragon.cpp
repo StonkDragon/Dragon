@@ -17,6 +17,10 @@
 #error "Windows is currently not supported."
 #endif
 
+#if !defined(_WIN32) && !defined(__wasm__)
+#include <execinfo.h>
+#endif
+
 #ifndef VERSION
 #define VERSION "0.0.0"
 #endif
@@ -730,6 +734,20 @@ void handle_signal(int signal) {
     DRAGON_LOG << "Caught signal " << signal << std::endl;
     if (errno)
         DRAGON_LOG << "Error: " << strerror(errno) << std::endl;
+#if !defined(_WIN32) && !defined(__wasm__)
+    void* array[64];
+    char** strings;
+    int size, i;
+
+    size = backtrace(array, 64);
+    strings = backtrace_symbols(array, size);
+    if (strings != NULL) {
+        for (i = 0; i < size; i++)
+            printf("  %s\n", strings[i]);
+    }
+
+    free(strings);
+#endif
     exit(signal);
 }
 

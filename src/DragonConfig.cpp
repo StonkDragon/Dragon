@@ -36,7 +36,7 @@ void StringEntry::setValue(std::string value) {
     size_t index;
     std::string tmp = value;
     std::string newVal = value;
-    while ((index = tmp.find_first_of("$(")) != std::string::npos) {
+    while ((index = tmp.find("$(")) != std::string::npos) {
         size_t endIndex = tmp.find_first_of(")");
         auto s = tmp.substr(index + 2, endIndex - index - 2);
         tmp = tmp.substr(endIndex + 1);
@@ -247,9 +247,12 @@ ConfigEntry* CompoundEntry::resolvePath(const std::string& path) {
     std::string internalCopy = path;
     auto pathAsVec = split(internalCopy, ".");
     CompoundEntry* current = this;
-    size_t i;
-    for (i = 0; i < pathAsVec.size() - 1; i++) {
-        current = current->getCompound(pathAsVec[i]);
+    size_t i = 0;
+    std::cout << "Resolving path " << path << std::endl;
+    if (pathAsVec.size() > 1) {
+        for (; i < pathAsVec.size() - 1; i++) {
+            current = current->getCompound(pathAsVec[i]);
+        }
     }
     return current->get(pathAsVec[i]);
 }
