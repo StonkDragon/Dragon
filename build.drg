@@ -1,3 +1,5 @@
+VERSION: "4.1";
+
 build: {
     compiler: "g++";
     outputDir: "build";
@@ -18,7 +20,7 @@ build: {
         "src";
     ];
     defines: [
-        "VERSION=\"4.0\"";
+        "VERSION=\"$(VERSION)\"";
     ];
     postBuild: [
         "sudo mv build/dragon /usr/local/bin/dragon";
