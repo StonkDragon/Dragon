@@ -248,7 +248,6 @@ ConfigEntry* CompoundEntry::resolvePath(const std::string& path) {
     auto pathAsVec = split(internalCopy, ".");
     CompoundEntry* current = this;
     size_t i = 0;
-    std::cout << "Resolving path " << path << std::endl;
     if (pathAsVec.size() > 1) {
         for (; i < pathAsVec.size() - 1; i++) {
             current = current->getCompound(pathAsVec[i]);
