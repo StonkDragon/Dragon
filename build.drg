@@ -1,4 +1,4 @@
-VERSION: "4.1";
+VERSION: "5.0";
 
 build: {
     compiler: "g++";
@@ -8,6 +8,12 @@ build: {
     units: [
         "dragon.cpp";
         "DragonConfig.cpp";
+        "commands/build.cpp";
+        "commands/clean.cpp";
+        "commands/init.cpp";
+        "commands/package.cpp";
+        "commands/presets.cpp";
+        "commands/run.cpp";
     ];
     std: "gnu++17";
     flags: [
