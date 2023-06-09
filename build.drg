@@ -28,7 +28,14 @@ build: {
     defines: [
         "VERSION=\"$(VERSION)\"";
     ];
+    preBuild: [
+        "sudo rm -rf /opt/dragon";
+        "sudo mkdir -p /opt/dragon";
+        "sudo chmod -R 777 /opt/dragon";
+    ];
     postBuild: [
-        "sudo mv build/dragon /usr/local/bin/dragon";
+        "sudo mv build/dragon /opt/dragon/dragon";
+        "sudo rm -rf /usr/local/bin/dragon";
+        "sudo ln -s /opt/dragon/dragon /usr/local/bin/dragon";
     ];
 };
