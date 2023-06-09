@@ -11,7 +11,6 @@ build: {
         "commands/build.cpp";
         "commands/clean.cpp";
         "commands/init.cpp";
-        "commands/package.cpp";
         "commands/presets.cpp";
         "commands/run.cpp";
     ];
