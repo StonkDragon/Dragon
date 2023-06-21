@@ -145,6 +145,14 @@ int main(int argc, const char* argv[])
 
     std::string command = argv[1];
 
+    if (command == "package") {
+        std::vector<std::string> args;
+        for (int i = 2; i < argc; ++i) {
+            args.push_back(std::string(argv[i]));
+        }
+        return cmd_package(args);
+    }
+
     std::string key = "";
 
     for (int i = 2; i < argc; ++i) {

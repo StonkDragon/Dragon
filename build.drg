@@ -13,6 +13,7 @@ build: {
         "commands/init.cpp";
         "commands/presets.cpp";
         "commands/run.cpp";
+        "commands/package.cpp";
     ];
     std: "gnu++17";
     flags: [

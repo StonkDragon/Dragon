@@ -1,30 +1,9 @@
 #include "../dragon.hpp"
 
-std::string cmd_build(std::string& configFile, bool waitForInteract) {
-    bool configExists = std::filesystem::exists(configFile);
-    if (!configExists) {
-        DRAGON_ERR << "Config file not found!" << std::endl;
-        DRAGON_ERR << "Have you forgot to run 'dragon init'?" << std::endl;
-        exit(1);
-    }
-
-    if (waitForInteract) {
-        std::string s;
-        std::cin >> s;
-    }
-    
-    DragonConfig::ConfigParser parser;
-    DragonConfig::CompoundEntry* root = parser.parse(configFile);
-    DragonConfig::CompoundEntry* buildConfig = root->getCompound(buildConfigRootEntry);
-
-    if (!buildConfig) {
-        DRAGON_ERR << "No build config with name '" << buildConfigRootEntry << "' found!" << std::endl;
-        exit(1);
-    }
-
+std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     if (!buildConfig->getList("units") || buildConfig->getList("units")->size() == 0) {
         DRAGON_ERR << "No compilation units defined!" << std::endl;
-        exit(1);
+        return "";
     }
 
     if (overrideCompiler) {
@@ -140,7 +119,7 @@ std::string cmd_build(std::string& configFile, bool waitForInteract) {
     if (outDirExists) {
         if (buildConfig->getStringOrDefault("outputDir", "build")->getValue() == ".") {
             DRAGON_ERR << "Cannot build in current directory" << std::endl;
-            exit(1);
+            return "";
         }
         std::filesystem::remove_all(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
     }
@@ -148,13 +127,13 @@ std::string cmd_build(std::string& configFile, bool waitForInteract) {
         std::filesystem::create_directories(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
     } catch (std::filesystem::filesystem_error& e) {
         std::cerr << "Failed to create output directory: " << buildConfig->getStringOrDefault("outputDir", "build")->getValue() << std::endl;
-        exit(1);
+        return "";
     }
 
     bool sourceDirExists = std::filesystem::exists(buildConfig->getStringOrDefault("sourceDir", "src")->getValue());
     if (!sourceDirExists) {
         DRAGON_ERR << "Source directory does not exist: " << buildConfig->getStringOrDefault("sourceDir", "src")->getValue() << std::endl;
-        exit(1);
+        return "";
     }
 
     if (buildConfig->getList("preBuild")) {
@@ -163,7 +142,7 @@ std::string cmd_build(std::string& configFile, bool waitForInteract) {
             int ret = system(buildConfig->getList("preBuild")->getString(i)->getValue().c_str());
             if (ret != 0) {
                 DRAGON_ERR << "Pre-build command failed: " << buildConfig->getList("preBuild")->getString(i)->getValue() << std::endl;
-                exit(1);
+                return "";
             }
         }
     }
@@ -257,4 +236,29 @@ std::string cmd_build(std::string& configFile, bool waitForInteract) {
     }
 
     return outputFile;
+}
+
+std::string cmd_build(std::string& configFile, bool waitForInteract) {
+    bool configExists = std::filesystem::exists(configFile);
+    if (!configExists) {
+        DRAGON_ERR << "Config file not found!" << std::endl;
+        DRAGON_ERR << "Have you forgot to run 'dragon init'?" << std::endl;
+        return "";
+    }
+
+    if (waitForInteract) {
+        std::string s;
+        std::cin >> s;
+    }
+    
+    DragonConfig::ConfigParser parser;
+    DragonConfig::CompoundEntry* root = parser.parse(configFile);
+    DragonConfig::CompoundEntry* buildConfig = root->getCompound(buildConfigRootEntry);
+
+    if (!buildConfig) {
+        DRAGON_ERR << "No build config with name '" << buildConfigRootEntry << "' found!" << std::endl;
+        return "";
+    }
+
+    return build_from_config(buildConfig);
 }

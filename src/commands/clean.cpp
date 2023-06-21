@@ -5,7 +5,7 @@ void cmd_clean(std::string& configFile) {
     if (!configExists) {
         DRAGON_ERR << "Config file not found!" << std::endl;
         DRAGON_ERR << "Have you forgot to run 'dragon init'?" << std::endl;
-        exit(1);
+        return;
     }
 
     DragonConfig::ConfigParser parser;

@@ -70,6 +70,7 @@ std::vector<std::string> get_presets();
 void generate_generic_main(std::string lang);
 void load_preset(std::string& identifier);
 void cmd_clean(std::string& configFile);
+int cmd_package(std::vector<std::string> args);
 
 std::string replaceAll(std::string src, std::string from, std::string to);
 bool strstarts(const std::string& str, const std::string& prefix);
