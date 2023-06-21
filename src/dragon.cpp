@@ -51,6 +51,7 @@ void usage(std::string progName, std::ostream& sink) {
     sink << "  version   Show the version" << std::endl;
     sink << "  config    Show the current config" << std::endl;
     sink << "  presets   List the available presets" << std::endl;
+    sink << "  package   Run the 'package' subcommand" << std::endl;
     sink << std::endl;
     sink << "Options:" << std::endl;
     sink << "  -c, --config <path>         Path to config file" << std::endl;
