@@ -152,6 +152,12 @@ int main(int argc, const char* argv[])
             args.push_back(std::string(argv[i]));
         }
         return cmd_package(args);
+    } else if (command == "install") {
+        std::vector<std::string> args;
+        for (int i = 1; i < argc; ++i) {
+            args.push_back(std::string(argv[i]));
+        }
+        return pkg_install(args);
     }
 
     std::string key = "";

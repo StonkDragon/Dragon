@@ -33,27 +33,37 @@ int pkg_install(std::vector<std::string> args) {
     if (args.size() > 2) {
         version = args[2];
     }
+
+    std::string packageDir = "/opt/dragon/den/";
+    if (package.find("@") != std::string::npos) {
+        packageDir += package.substr(0, package.find("@"));
+    } else {
+        packageDir += package;
+    }
+
     std::string command = "git clone " + url + package;
     if (version.size()) {
         command += " --branch " + version;
     }
-    command += " --recurse-submodules .dragon_tmp > /dev/null 2> /dev/null";
+    command += " --recurse-submodules " + packageDir + " > /dev/null 2> /dev/null";
+    
+    int ret;
 
-    if (std::filesystem::exists(".dragon_tmp")) {
-        system("rm -rf .dragon_tmp");
+    if (std::filesystem::exists(packageDir)) {
+        std::filesystem::remove_all(packageDir);
     }
+    std::filesystem::create_directories(std::filesystem::path(packageDir).parent_path());
+
     DRAGON_LOG << command << std::endl;
-    int ret = system(command.c_str());
+    ret = system(command.c_str());
     if (ret != 0) {
         DRAGON_ERR << "Failed to install package '" << package << "'." << std::endl;
-        system("rm -rf .dragon_tmp");
         return ret;
     }
 
-    std::string configFile = ".dragon_tmp/build.drg";
+    std::string configFile = packageDir + "/build.drg";
     if (!std::filesystem::exists(configFile)) {
         DRAGON_ERR << "Invalid package '" << package << "'." << std::endl;
-        system("rm -rf .dragon_tmp");
         return 1;
     }
     using namespace DragonConfig;
@@ -61,19 +71,17 @@ int pkg_install(std::vector<std::string> args) {
     CompoundEntry* root = parser.parse(configFile);
     if (!root) {
         DRAGON_ERR << "Failed to parse package config for '" << package << "'." << std::endl;
-        system("rm -rf .dragon_tmp");
         return 1;
     }
     CompoundEntry* install = root->getCompound("install");
     if (!install) {
         DRAGON_ERR << "No 'install' section in package config for '" << package << "'." << std::endl;
-        system("rm -rf .dragon_tmp");
         return 1;
     }
-    chdir(".dragon_tmp");
+    auto pwd = std::filesystem::current_path();
+    chdir(packageDir.c_str());
     std::string builtFile = build_from_config(install);
-    chdir("..");
-    system("rm -rf .dragon_tmp");
+    chdir(pwd.c_str());
     if (builtFile.size() == 0) {
         DRAGON_ERR << "Failed to install package '" << package << "'." << std::endl;
         return 1;
