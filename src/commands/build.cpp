@@ -148,12 +148,19 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     }
 
     size_t unitSize = customUnits.size();
+    std::vector<std::string> units;
+    units.reserve(unitSize);
 
     if (buildConfig->getList("units")) {
         for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
             std::string unit = buildConfig->getList("units")->getString(i)->getValue();
             
             cmd.push_back(
+                buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+                std::filesystem::path::preferred_separator +
+                unit
+            );
+            units.push_back(
                 buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
                 std::filesystem::path::preferred_separator +
                 unit
@@ -165,6 +172,11 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         std::string unit = customUnits.at(i);
         
         cmd.push_back(
+            buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+            std::filesystem::path::preferred_separator +
+            unit
+        );
+        units.push_back(
             buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
             std::filesystem::path::preferred_separator +
             unit
@@ -188,6 +200,22 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
 
     cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
     cmd.push_back(outputFile);
+
+    for (auto&& unit : units) {
+        FILE* file = fopen(unit.c_str(), "r");
+        size_t len = 1024;
+        char* cline = new char[1025];
+        ssize_t l;
+        while ((l = getline(&cline, &len, file)) != EOF) {
+            std::string line(cline, len);
+            size_t n;
+                                // this string is like this because otherwise
+                                // it would be picked up by this here
+            if ((n = line.find("// ""TODO")) != std::string::npos) {
+                DRAGON_LOG << "Todo: " << line.substr(n + 7, line.find("\n") - n - 7) << std::endl;
+            }
+        }
+    }
 
     std::string cmdStr = "";
     for (auto&& s : cmd) {
