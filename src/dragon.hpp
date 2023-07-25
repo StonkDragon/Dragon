@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <regex>
 
 #ifdef _WIN32

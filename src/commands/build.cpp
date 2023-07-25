@@ -1,5 +1,35 @@
 #include "../dragon.hpp"
 
+void build(std::vector<std::string> cmd) {
+    int pid = fork();
+    if (pid == 0) {
+        char** argv = (char**) malloc(sizeof(char*) * (cmd.size() + 1));
+        int argc = 0;
+        for (auto&& s : cmd) {
+            s = replaceAll(s, R"(\\")", "\"");
+            argv[argc++] = (char*) s.c_str();
+        }
+        argv[argc] = nullptr;
+        int ret = execvp(argv[0], (char* const*) argv);
+        DRAGON_ERR << "Could not run: " << std::string(strerror(errno)) << std::endl;
+        DRAGON_ERR << "ret was: " << ret << std::endl;
+        exit(ret);
+    } else if (pid) {
+        waitpid(pid, NULL, 0);
+    } else {
+        DRAGON_ERR << "Failed to fork child process for compilation! Error: " << std::string(strerror(errno)) << std::endl;
+        exit(-1);
+    }
+}
+
+std::string vecToString(std::vector<std::string>& vec) {
+    std::string ret = "";
+    for (auto&& s : vec) {
+        ret += s + " ";
+    }
+    return ret;
+}
+
 std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     if (!buildConfig->getList("units") || buildConfig->getList("units")->size() == 0) {
         DRAGON_ERR << "No compilation units defined!" << std::endl;
@@ -33,6 +63,9 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     if (overrideOutFilePrefix) {
         buildConfig->setString("outFilePrefix", outFilePrefix);
     }
+    
+    bool incrementalBuild = buildConfig->getStringOrDefault("incrementalBuild", "false")->getValue() == "true";
+
     std::vector<std::string> cmd;
     cmd.push_back(buildConfig->getStringOrDefault("compiler", "clang")->getValue());
     if (buildConfig->getList("flags")) {
@@ -121,7 +154,11 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
             DRAGON_ERR << "Cannot build in current directory" << std::endl;
             return "";
         }
-        std::filesystem::remove_all(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
+        std::filesystem::remove_all(
+            buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
+            std::filesystem::path::preferred_separator +
+            buildConfig->getStringOrDefault("target", "main")->getValue()
+        );
     }
     try {
         std::filesystem::create_directories(buildConfig->getStringOrDefault("outputDir", "build")->getValue());
@@ -155,11 +192,13 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         for (u_long i = 0; i < buildConfig->getList("units")->size(); i++) {
             std::string unit = buildConfig->getList("units")->getString(i)->getValue();
             
-            cmd.push_back(
-                buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
-                std::filesystem::path::preferred_separator +
-                unit
-            );
+            if (!incrementalBuild) {
+                cmd.push_back(
+                    buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+                    std::filesystem::path::preferred_separator +
+                    unit
+                );
+            }
             units.push_back(
                 buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
                 std::filesystem::path::preferred_separator +
@@ -171,11 +210,13 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     for (size_t i = 0; i < unitSize; i++) {
         std::string unit = customUnits.at(i);
         
-        cmd.push_back(
-            buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
-            std::filesystem::path::preferred_separator +
-            unit
-        );
+        if (!incrementalBuild) {
+            cmd.push_back(
+                buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
+                std::filesystem::path::preferred_separator +
+                unit
+            );
+        }
         units.push_back(
             buildConfig->getStringOrDefault("sourceDir", "src")->getValue() +
             std::filesystem::path::preferred_separator +
@@ -198,8 +239,8 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         );
     }
 
-    cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
-    cmd.push_back(outputFile);
+    size_t sourceDirPrefixLen =
+        (buildConfig->getStringOrDefault("sourceDir", "src")->getValue() + std::filesystem::path::preferred_separator).size();
 
     for (auto&& unit : units) {
         FILE* file = fopen(unit.c_str(), "r");
@@ -215,43 +256,59 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
                 DRAGON_LOG << "Todo: " << line.substr(n + 7, line.find("\n") - n - 7) << std::endl;
             }
         }
-    }
 
-    std::string cmdStr = "";
-    for (auto&& s : cmd) {
-        cmdStr += s + " ";
-    }
-    DRAGON_LOG << "Running build command: " << cmdStr << std::endl;
-#if 1
-// compile with execv()
-    int pid = fork();
-    if (pid == 0) {
-        char** argv = (char**) malloc(sizeof(char*) * (cmd.size() + 1));
-        int argc = 0;
-        for (auto&& s : cmd) {
-            s = replaceAll(s, R"(\\")", "\"");
-            argv[argc++] = (char*) s.c_str();
+        if (!incrementalBuild) {
+            continue;
         }
-        argv[argc] = nullptr;
-        int ret = execvp(argv[0], (char* const*) argv);
-        DRAGON_ERR << "Could not run: " << std::string(strerror(errno)) << std::endl;
-        DRAGON_ERR << "ret was: " << ret << std::endl;
-        exit(ret);
-    } else if (pid) {
-        waitpid(pid, NULL, 0);
-    } else {
-        DRAGON_ERR << "Failed to fork child process for compilation! Error: " << std::string(strerror(errno)) << std::endl;
-        exit(-1);
+
+        std::string outFile =
+            buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
+            std::filesystem::path::preferred_separator +
+            replaceAll(unit.substr(sourceDirPrefixLen), "/", "_") +
+            ".o";
+
+        auto tmp = cmd;
+
+        tmp.push_back(unit);
+        tmp.push_back("-o");
+        tmp.push_back(outFile);
+        tmp.push_back("-c");
+
+        if (std::filesystem::exists(outFile)) {
+            struct stat outFileStat;
+            struct stat unitStat;
+            stat(outFile.c_str(), &outFileStat);
+            stat(unit.c_str(), &unitStat);
+            time_t outFileModificationTime = outFileStat.st_mtime;
+            time_t unitModificationTime = unitStat.st_mtime;
+
+            if (outFileModificationTime > unitModificationTime) {
+                continue;
+            }
+        }
+
+        DRAGON_LOG << "Building object file for unit: " << unit << std::endl;
+        build(tmp);
     }
 
-#else
-// compile with system()
-    int run = system(cmdStr.c_str());
-    if (run != 0) {
-        DRAGON_ERR << "Failed to run command: " << cmdStr << std::endl;
-        exit(run);
+    cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
+    cmd.push_back(outputFile);
+
+    if (incrementalBuild) {
+        for (auto&& unit : units) {
+            cmd.push_back(
+                buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
+                std::filesystem::path::preferred_separator +
+                replaceAll(unit.substr(sourceDirPrefixLen), "/", "_") +
+                ".o"
+            );
+        }
     }
-#endif
+
+    DRAGON_LOG << "Running build command: " << vecToString(cmd) << std::endl;
+
+    build(cmd);
+
     if (buildConfig->getList("postBuild")) {
         for (u_long i = 0; i < buildConfig->getList("postBuild")->size(); i++) {
             DRAGON_LOG << "Running postbuild command: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
