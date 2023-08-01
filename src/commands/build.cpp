@@ -30,6 +30,12 @@ std::string vecToString(std::vector<std::string>& vec) {
     return ret;
 }
 
+void buildThreaded(std::vector<std::string>* cmd) {
+    DRAGON_LOG << "Started building: " << cmd->at(cmd->size() - 2) << std::endl;
+    build(*cmd);
+    DRAGON_LOG << "Finished building: " << cmd->at(cmd->size() - 2) << std::endl;
+}
+
 std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     if (!buildConfig->getList("units") || buildConfig->getList("units")->size() == 0) {
         DRAGON_ERR << "No compilation units defined!" << std::endl;
@@ -65,6 +71,11 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     }
     
     bool incrementalBuild = buildConfig->getStringOrDefault("incrementalBuild", "false")->getValue() == "true";
+    bool parallelBuild = buildConfig->getStringOrDefault("parallelBuild", "false")->getValue() == "true";
+    if (parallelBuild && !incrementalBuild) {
+        DRAGON_ERR << "Parallel build requires incremental build!" << std::endl;
+        return "";
+    }
 
     std::vector<std::string> cmd;
     cmd.push_back(buildConfig->getStringOrDefault("compiler", "clang")->getValue());
@@ -242,6 +253,66 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     size_t sourceDirPrefixLen =
         (buildConfig->getStringOrDefault("sourceDir", "src")->getValue() + std::filesystem::path::preferred_separator).size();
 
+    std::vector<pthread_t> threads;
+
+    std::string cachedBuildConfig =
+        buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
+        std::filesystem::path::preferred_separator +
+        "build.drg.cache";
+
+    auto cacheConfig = [cachedBuildConfig, buildConfig]() {
+        std::ofstream cacheFile(cachedBuildConfig);
+        buildConfig->print(cacheFile);
+        cacheFile.close();
+    };
+
+    if (!std::filesystem::exists(cachedBuildConfig)) {
+        cacheConfig();
+    }
+    if (file_modified_time(cachedBuildConfig) < file_modified_time(buildConfigFile)) {
+        bool fullRebuildOnConfigChange = buildConfig->getStringOrDefault("fullRebuildOnConfigChange", "false")->getValue() == "true";
+        if (fullRebuildOnConfigChange) {
+            ignoreCache = true;
+        }
+        cacheConfig();
+    }
+
+    auto cacheFile = [](std::string from, std::string to) {
+        std::filesystem::create_directories(to.substr(0, to.find_last_of(std::filesystem::path::preferred_separator)));
+        std::ifstream src(from, std::ios::binary);
+        std::ofstream dst(to, std::ios::binary);
+        dst << src.rdbuf();
+    };
+
+    DragonConfig::ListEntry* watchRegexes = buildConfig->getList("watch");
+    if (watchRegexes) {
+        std::filesystem::path sourcePath(buildConfig->getStringOrDefault("sourceDir", "src")->getValue());
+        // recurse through source directory
+        for (auto& p : std::filesystem::recursive_directory_iterator(sourcePath)) {
+            if (std::filesystem::is_regular_file(p)) {
+                std::string path = p.path().string();
+                for (u_long i = 0; i < watchRegexes->size(); i++) {
+                    std::regex regex(watchRegexes->getString(i)->getValue());
+                    if (std::regex_search(path, regex)) {
+                        std::string cachedFile =
+                            buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
+                            std::filesystem::path::preferred_separator +
+                            replaceAll(path.substr(sourceDirPrefixLen), "/", "@@");
+                        
+                        if (!std::filesystem::exists(cachedFile)) {
+                            cacheFile(path, cachedFile);
+                        } else {
+                            if (file_modified_time(cachedFile) < file_modified_time(path)) {
+                                ignoreCache = true;
+                                cacheFile(path, cachedFile);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     for (auto&& unit : units) {
         FILE* file = fopen(unit.c_str(), "r");
         size_t len = 1024;
@@ -264,31 +335,29 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         std::string outFile =
             buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
             std::filesystem::path::preferred_separator +
-            replaceAll(unit.substr(sourceDirPrefixLen), "/", "_") +
+            replaceAll(unit.substr(sourceDirPrefixLen), "/", "@@") +
             ".o";
 
-        auto tmp = cmd;
+        auto tmp = new std::vector(cmd);
 
-        tmp.push_back(unit);
-        tmp.push_back("-o");
-        tmp.push_back(outFile);
-        tmp.push_back("-c");
+        tmp->push_back(unit);
+        tmp->push_back("-o");
+        tmp->push_back(outFile);
+        tmp->push_back("-c");
 
-        if (std::filesystem::exists(outFile)) {
-            struct stat outFileStat;
-            struct stat unitStat;
-            stat(outFile.c_str(), &outFileStat);
-            stat(unit.c_str(), &unitStat);
-            time_t outFileModificationTime = outFileStat.st_mtime;
-            time_t unitModificationTime = unitStat.st_mtime;
-
-            if (outFileModificationTime > unitModificationTime) {
+        if (!ignoreCache && std::filesystem::exists(outFile)) {
+            if (file_modified_time(unit) < file_modified_time(outFile)) {
                 continue;
             }
         }
 
-        DRAGON_LOG << "Building object file for unit: " << unit << std::endl;
-        build(tmp);
+        pthread_t thread;
+        pthread_create(&thread, NULL, (void*(*)(void*)) &buildThreaded, tmp);
+        if (parallelBuild) {
+            threads.push_back(thread);
+        } else {
+            pthread_join(thread, NULL);
+        }
     }
 
     cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
@@ -299,10 +368,14 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
             cmd.push_back(
                 buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
                 std::filesystem::path::preferred_separator +
-                replaceAll(unit.substr(sourceDirPrefixLen), "/", "_") +
+                replaceAll(unit.substr(sourceDirPrefixLen), "/", "@@") +
                 ".o"
             );
         }
+    }
+
+    for (auto&& thread : threads) {
+        pthread_join(thread, NULL);
     }
 
     DRAGON_LOG << "Running build command: " << vecToString(cmd) << std::endl;

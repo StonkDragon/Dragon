@@ -38,6 +38,12 @@ void handle_signal(int signal) {
     exit(signal);
 }
 
+time_t file_modified_time(const std::string& path) {
+    struct stat attr;
+    stat(path.c_str(), &attr);
+    return attr.st_mtime;
+}
+
 #include "DragonConfig.hpp"
 
 void usage(std::string progName, std::ostream& sink) {
@@ -86,6 +92,8 @@ bool overrideLibraryPathPrefix = false;
 bool overrideIncludePrefix = false;
 bool overrideOutFilePrefix = false;
 
+bool ignoreCache = false;
+
 std::string compiler = "gcc";
 std::string outputDir = "build";
 std::string target = "main";
@@ -96,6 +104,8 @@ std::string libraryPrefix = "-l";
 std::string libraryPathPrefix = "-L";
 std::string includePrefix = "-I";
 std::string outFilePrefix = "-o";
+
+std::string buildConfigFile = "build.drg";
 
 std::vector<std::string> customUnits;
 std::vector<std::string> customIncludes;
@@ -137,8 +147,6 @@ int main(int argc, const char* argv[])
     signal(SIGILL, handle_signal);
     signal(SIGFPE, handle_signal);
 
-    std::string configFile = "build.drg";
-
     if (argc < 2) {
         usage(argv[0], std::cout);
         return 0;
@@ -166,7 +174,7 @@ int main(int argc, const char* argv[])
         std::string arg = std::string(argv[i]);
         if (arg == "-c" || arg == "--buildConfig") {
             if (i + 1 < argc) {
-                configFile = std::string(argv[++i]);
+                buildConfigFile = std::string(argv[++i]);
             } else {
                 DRAGON_ERR << "No buildConfig file specified" << std::endl;
                 exit(1);
@@ -253,7 +261,7 @@ int main(int argc, const char* argv[])
             if (i + 1 < argc) {
                 std::string preset = std::string(argv[++i]);
                 load_preset(preset);
-                cmd_init(configFile);
+                cmd_init(buildConfigFile);
                 return 0;
             } else {
                 DRAGON_ERR << "No preset specified" << std::endl;
@@ -318,6 +326,8 @@ int main(int argc, const char* argv[])
                 DRAGON_ERR << "No key specified" << std::endl;
                 exit(1);
             }
+        } else if (arg == "-ignore-cache") {
+            ignoreCache = true;
         } else if (arg == "-h" || arg == "--help") {
             usage(argv[0], std::cout);
             return 0;
@@ -329,20 +339,20 @@ int main(int argc, const char* argv[])
     }
 
     if (command == "init") {
-        cmd_init(configFile);
+        cmd_init(buildConfigFile);
     } else if (command == "build") {
-        cmd_build(configFile);
+        cmd_build(buildConfigFile);
     } else if (command == "help") {
         usage(argv[0], std::cout);
     } else if (command == "version") {
         std::cout << "Dragon version " << VERSION << std::endl;
     } else if (command == "run") {
-        cmd_run(configFile);
+        cmd_run(buildConfigFile);
     } else if (command == "clean") {
-        cmd_clean(configFile);
+        cmd_clean(buildConfigFile);
     } else if (command == "config") {
         DragonConfig::ConfigParser parser;
-        DragonConfig::CompoundEntry* root = parser.parse(configFile);
+        DragonConfig::CompoundEntry* root = parser.parse(buildConfigFile);
         if (key.size()) {
             DragonConfig::StringEntry* entry = root->getStringByPath(key);
             if (entry) {

@@ -45,6 +45,9 @@ extern bool overrideLibraryPrefix;
 extern bool overrideLibraryPathPrefix;
 extern bool overrideIncludePrefix;
 extern bool overrideOutFilePrefix;
+
+extern bool ignoreCache;
+
 extern std::string compiler;
 extern std::string outputDir;
 extern std::string target;
@@ -54,6 +57,9 @@ extern std::string libraryPrefix;
 extern std::string libraryPathPrefix;
 extern std::string includePrefix;
 extern std::string outFilePrefix;
+
+extern std::string buildConfigFile;
+
 extern std::vector<std::string> customUnits;
 extern std::vector<std::string> customIncludes;
 extern std::vector<std::string> customLibs;
@@ -62,6 +68,7 @@ extern std::vector<std::string> customDefines;
 extern std::vector<std::string> customFlags;
 extern std::vector<std::string> customPreBuilds;
 extern std::vector<std::string> customPostBuilds;
+
 extern std::string buildConfigRootEntry;
 
 std::string cmd_build(std::string& configFile, bool waitForInteract = false);
@@ -77,5 +84,6 @@ int pkg_install(std::vector<std::string> args);
 std::string replaceAll(std::string src, std::string from, std::string to);
 bool strstarts(const std::string& str, const std::string& prefix);
 std::vector<std::string> split(const std::string& str, char delim);
+time_t file_modified_time(const std::string& path);
 
 #endif

@@ -1,12 +1,14 @@
-VERSION: "6.2";
+VERSION: "6.3";
 
 build: {
-    incrementalBuild: "true";
-    compiler: "g++";
-    outputDir: "build";
-    target: "dragon";
-    sourceDir: "src";
-    units: [
+    incrementalBuild: "true"; # Incremental build
+    parallelBuild: "true"; # Build in parallel
+    fullRebuildOnConfigChange: "true"; # Full rebuild when build.drg changes
+    compiler: "clang++"; # Compiler
+    outputDir: "build"; # Output directory
+    target: "dragon"; # Output file
+    sourceDir: "src"; # Source directory
+    units: [ # Build these files
         "dragon.cpp";
         "DragonConfig.cpp";
         "commands/build.cpp";
@@ -16,25 +18,28 @@ build: {
         "commands/run.cpp";
         "commands/package.cpp";
     ];
-    std: "gnu++17";
-    flags: [
+    watch: [ # Full rebuild when any file matching these regexes changes
+        ".*\.hpp";
+    ];
+    std: "gnu++17"; # C(++) standard
+    flags: [ # Compiler flags
         "-Wall";
         "-Wextra";
         "-Werror";
         "-pedantic";
     ];
-    includes: [
+    includes: [ # Include directories
         "src";
     ];
-    defines: [
+    defines: [ # Preprocessor definitions
         "VERSION=\"$(VERSION)\"";
     ];
-    preBuild: [
+    preBuild: [ # Run these commands before building
         "sudo rm -rf /opt/dragon";
         "sudo mkdir -p /opt/dragon";
         "sudo chmod -R 777 /opt/dragon";
     ];
-    postBuild: [
+    postBuild: [ # Run these commands after building
         "sudo mv build/dragon /opt/dragon/dragon";
         "sudo rm -rf /usr/local/bin/dragon";
         "sudo ln -s /opt/dragon/dragon /usr/local/bin/dragon";

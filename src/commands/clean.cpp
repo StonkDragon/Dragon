@@ -14,9 +14,10 @@ void cmd_clean(std::string& configFile) {
     std::string validation = std::filesystem::current_path().filename().string();
     std::cout << "\x07";
     DRAGON_LOG << "Warning: This action is not reversible!" << std::endl;
-    DRAGON_LOG << "All files in the directories below will be deleted:" << std::endl;
+    DRAGON_LOG << "All files and directories below will be deleted:" << std::endl;
     DRAGON_LOG << "    " << root->getStringOrDefault("outputDir", "build")->getValue() << std::endl;
     DRAGON_LOG << "    " << root->getStringOrDefault("sourceDir", "src")->getValue() << std::endl;
+    DRAGON_LOG << "    build.drg" << std::endl;
     DRAGON_LOG << "Are you sure you want to continue?" << std::endl;
     DRAGON_LOG << "Please type '" << validation << "' to confirm" << std::endl;
     DRAGON_LOG << "> ";
