@@ -21,7 +21,7 @@ void handle_signal(int signal) {
     DRAGON_LOG << "Caught signal " << signal << std::endl;
     if (errno)
         DRAGON_LOG << "Error: " << strerror(errno) << std::endl;
-#if !defined(_WIN32) && !defined(__wasm__)
+#if !defined(_WIN32)
     void* array[64];
     char** strings;
     int size, i;
@@ -38,10 +38,8 @@ void handle_signal(int signal) {
     exit(signal);
 }
 
-time_t file_modified_time(const std::string& path) {
-    struct stat attr;
-    stat(path.c_str(), &attr);
-    return attr.st_mtime;
+std::filesystem::file_time_type file_modified_time(const std::string& path) {
+    return std::filesystem::last_write_time(path);
 }
 
 #include "DragonConfig.hpp"
@@ -80,6 +78,8 @@ void usage(std::string progName, std::ostream& sink) {
     sink << "  -outputPrefix <prefix>      Compiler prefix for output files" << std::endl;
     sink << "  -preset <preset>            Use a preset for initialization (only works with the 'init' command)" << std::endl;
     sink << "  -conf <key>                 Use key as the root key for build configuration" << std::endl;
+    sink << "  -fullRebuild                Ignore cache and rebuild everything" << std::endl;
+    sink << "  -noParallel                 Disable parallel compilation" << std::endl;
 }
 
 bool overrideCompiler = false;
@@ -92,7 +92,8 @@ bool overrideLibraryPathPrefix = false;
 bool overrideIncludePrefix = false;
 bool overrideOutFilePrefix = false;
 
-bool ignoreCache = false;
+bool fullRebuild = false;
+bool parallel = true;
 
 std::string compiler = "gcc";
 std::string outputDir = "build";
@@ -326,8 +327,10 @@ int main(int argc, const char* argv[])
                 DRAGON_ERR << "No key specified" << std::endl;
                 exit(1);
             }
-        } else if (arg == "-ignore-cache") {
-            ignoreCache = true;
+        } else if (arg == "-fullRebuild") {
+            fullRebuild = true;
+        } else if (arg == "-noParallel") {
+            parallel = false;
         } else if (arg == "-h" || arg == "--help") {
             usage(argv[0], std::cout);
             return 0;

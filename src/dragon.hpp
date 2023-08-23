@@ -7,22 +7,24 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <regex>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <regex>
 
-#ifdef _WIN32
-#error "Windows is currently not supported."
+#if defined(__wasm__)
+#error "Why are you trying to compile this for wasm? It's not supported."
 #endif
 
-#if !defined(_WIN32) && !defined(__wasm__)
+#ifdef _WIN32
+#warning "Windows support is experimental and may not work."
+#endif
+
+#if !defined(_WIN32)
 #include <execinfo.h>
+#include <sys/stat.h>
 #endif
 
 #ifndef VERSION
@@ -46,7 +48,8 @@ extern bool overrideLibraryPathPrefix;
 extern bool overrideIncludePrefix;
 extern bool overrideOutFilePrefix;
 
-extern bool ignoreCache;
+extern bool fullRebuild;
+extern bool parallel;
 
 extern std::string compiler;
 extern std::string outputDir;
@@ -80,10 +83,11 @@ void load_preset(std::string& identifier);
 void cmd_clean(std::string& configFile);
 int cmd_package(std::vector<std::string> args);
 int pkg_install(std::vector<std::string> args);
+void run_with_args(std::string& cmd, std::vector<std::string>& args);
 
 std::string replaceAll(std::string src, std::string from, std::string to);
 bool strstarts(const std::string& str, const std::string& prefix);
 std::vector<std::string> split(const std::string& str, char delim);
-time_t file_modified_time(const std::string& path);
+std::filesystem::file_time_type file_modified_time(const std::string& path);
 
 #endif

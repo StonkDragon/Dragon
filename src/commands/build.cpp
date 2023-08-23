@@ -1,33 +1,15 @@
 #include "../dragon.hpp"
 
-void build(std::vector<std::string> cmd) {
-    int pid = fork();
-    if (pid == 0) {
-        char** argv = (char**) malloc(sizeof(char*) * (cmd.size() + 1));
-        int argc = 0;
-        for (auto&& s : cmd) {
-            s = replaceAll(s, R"(\\")", "\"");
-            argv[argc++] = (char*) s.c_str();
-        }
-        argv[argc] = nullptr;
-        int ret = execvp(argv[0], (char* const*) argv);
-        DRAGON_ERR << "Could not run: " << std::string(strerror(errno)) << std::endl;
-        DRAGON_ERR << "ret was: " << ret << std::endl;
-        exit(ret);
-    } else if (pid) {
-        waitpid(pid, NULL, 0);
-    } else {
-        DRAGON_ERR << "Failed to fork child process for compilation! Error: " << std::string(strerror(errno)) << std::endl;
-        exit(-1);
-    }
-}
-
 std::string vecToString(std::vector<std::string>& vec) {
     std::string ret = "";
     for (auto&& s : vec) {
         ret += s + " ";
     }
     return ret;
+}
+
+void build(std::vector<std::string> cmd) {
+    run_with_args(cmd.front(), cmd);
 }
 
 void buildThreaded(std::vector<std::string>* cmd) {
@@ -71,7 +53,7 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     }
     
     bool incrementalBuild = buildConfig->getStringOrDefault("incrementalBuild", "false")->getValue() == "true";
-    bool parallelBuild = buildConfig->getStringOrDefault("parallelBuild", "false")->getValue() == "true";
+    bool parallelBuild = parallel && buildConfig->getStringOrDefault("parallelBuild", "false")->getValue() == "true";
     if (parallelBuild && !incrementalBuild) {
         DRAGON_ERR << "Parallel build requires incremental build!" << std::endl;
         return "";
@@ -184,12 +166,20 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         return "";
     }
 
-    if (buildConfig->getList("preBuild")) {
-        for (u_long i = 0; i < buildConfig->getList("preBuild")->size(); i++) {
-            DRAGON_LOG << "Running prebuild command: " << buildConfig->getList("preBuild")->getString(i)->getValue() << std::endl;
-            int ret = system(buildConfig->getList("preBuild")->getString(i)->getValue().c_str());
+#if defined(_WIN32)
+#define PRE_BUILD_TAG "preBuildWin"
+#define POST_BUILD_TAG "postBuildWin"
+#else
+#define PRE_BUILD_TAG "preBuild"
+#define POST_BUILD_TAG "postBuild"
+#endif
+
+    if (buildConfig->getList(PRE_BUILD_TAG)) {
+        for (u_long i = 0; i < buildConfig->getList(PRE_BUILD_TAG)->size(); i++) {
+            DRAGON_LOG << "Running prebuild command: " << buildConfig->getList(PRE_BUILD_TAG)->getString(i)->getValue() << std::endl;
+            int ret = system(buildConfig->getList(PRE_BUILD_TAG)->getString(i)->getValue().c_str());
             if (ret != 0) {
-                DRAGON_ERR << "Pre-build command failed: " << buildConfig->getList("preBuild")->getString(i)->getValue() << std::endl;
+                DRAGON_ERR << "Pre-build command failed: " << buildConfig->getList(PRE_BUILD_TAG)->getString(i)->getValue() << std::endl;
                 return "";
             }
         }
@@ -253,7 +243,9 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     size_t sourceDirPrefixLen =
         (buildConfig->getStringOrDefault("sourceDir", "src")->getValue() + std::filesystem::path::preferred_separator).size();
 
+#if !defined(_WIN32)
     std::vector<pthread_t> threads;
+#endif
 
     std::string cachedBuildConfig =
         buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
@@ -272,7 +264,7 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     if (file_modified_time(cachedBuildConfig) < file_modified_time(buildConfigFile)) {
         bool fullRebuildOnConfigChange = buildConfig->getStringOrDefault("fullRebuildOnConfigChange", "false")->getValue() == "true";
         if (fullRebuildOnConfigChange) {
-            ignoreCache = true;
+            fullRebuild = true;
         }
         cacheConfig();
     }
@@ -297,13 +289,13 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
                         std::string cachedFile =
                             buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
                             std::filesystem::path::preferred_separator +
-                            replaceAll(path.substr(sourceDirPrefixLen), "/", "@@");
+                            replaceAll(path.substr(sourceDirPrefixLen), "/", "@");
                         
                         if (!std::filesystem::exists(cachedFile)) {
                             cacheFile(path, cachedFile);
                         } else {
                             if (file_modified_time(cachedFile) < file_modified_time(path)) {
-                                ignoreCache = true;
+                                fullRebuild = true;
                                 cacheFile(path, cachedFile);
                             }
                         }
@@ -324,7 +316,7 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
                                 // this string is like this because otherwise
                                 // it would be picked up by this here
             if ((n = line.find("// ""TODO")) != std::string::npos) {
-                DRAGON_LOG << "Todo: " << line.substr(n + 7, line.find("\n") - n - 7) << std::endl;
+                DRAGON_LOG << "Todo: " << line.substr(line.find("TODO") + 5) << std::endl;
             }
         }
 
@@ -335,7 +327,7 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         std::string outFile =
             buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
             std::filesystem::path::preferred_separator +
-            replaceAll(unit.substr(sourceDirPrefixLen), "/", "@@") +
+            replaceAll(unit.substr(sourceDirPrefixLen), "/", "@") +
             ".o";
 
         auto tmp = new std::vector(cmd);
@@ -345,12 +337,13 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         tmp->push_back(outFile);
         tmp->push_back("-c");
 
-        if (!ignoreCache && std::filesystem::exists(outFile)) {
+        if (!fullRebuild && std::filesystem::exists(outFile)) {
             if (file_modified_time(unit) < file_modified_time(outFile)) {
                 continue;
             }
         }
 
+#if !defined(_WIN32)
         pthread_t thread;
         pthread_create(&thread, NULL, (void*(*)(void*)) &buildThreaded, tmp);
         if (parallelBuild) {
@@ -358,6 +351,10 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         } else {
             pthread_join(thread, NULL);
         }
+#else
+#warning "Parallel build not supported on Windows!"
+        buildThreaded(tmp);
+#endif
     }
 
     cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
@@ -368,26 +365,28 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
             cmd.push_back(
                 buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
                 std::filesystem::path::preferred_separator +
-                replaceAll(unit.substr(sourceDirPrefixLen), "/", "@@") +
+                replaceAll(unit.substr(sourceDirPrefixLen), "/", "@") +
                 ".o"
             );
         }
     }
 
+#if !defined(_WIN32)
     for (auto&& thread : threads) {
         pthread_join(thread, NULL);
     }
+#endif
 
     DRAGON_LOG << "Running build command: " << vecToString(cmd) << std::endl;
 
     build(cmd);
 
-    if (buildConfig->getList("postBuild")) {
-        for (u_long i = 0; i < buildConfig->getList("postBuild")->size(); i++) {
-            DRAGON_LOG << "Running postbuild command: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
-            int ret = system(buildConfig->getList("postBuild")->getString(i)->getValue().c_str());
+    if (buildConfig->getList(POST_BUILD_TAG)) {
+        for (u_long i = 0; i < buildConfig->getList(POST_BUILD_TAG)->size(); i++) {
+            DRAGON_LOG << "Running postbuild command: " << buildConfig->getList(POST_BUILD_TAG)->getString(i)->getValue() << std::endl;
+            int ret = system(buildConfig->getList(POST_BUILD_TAG)->getString(i)->getValue().c_str());
             if (ret != 0) {
-                DRAGON_ERR << "Post-build command failed: " << buildConfig->getList("postBuild")->getString(i)->getValue() << std::endl;
+                DRAGON_ERR << "Post-build command failed: " << buildConfig->getList(POST_BUILD_TAG)->getString(i)->getValue() << std::endl;
                 exit(ret);
             }
         }

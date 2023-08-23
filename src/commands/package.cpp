@@ -79,9 +79,11 @@ int pkg_install(std::vector<std::string> args) {
         return 1;
     }
     auto pwd = std::filesystem::current_path();
-    chdir(packageDir.c_str());
+    std::filesystem::current_path(packageDir);
+    
     std::string builtFile = build_from_config(install);
-    chdir(pwd.c_str());
+    std::filesystem::current_path(pwd);
+
     if (builtFile.size() == 0) {
         DRAGON_ERR << "Failed to install package '" << package << "'." << std::endl;
         return 1;
