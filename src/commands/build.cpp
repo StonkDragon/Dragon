@@ -53,11 +53,15 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     }
     
     bool incrementalBuild = buildConfig->getStringOrDefault("incrementalBuild", "false")->getValue() == "true";
+#if !defined(_WIN32)
     bool parallelBuild = parallel && buildConfig->getStringOrDefault("parallelBuild", "false")->getValue() == "true";
     if (parallelBuild && !incrementalBuild) {
         DRAGON_ERR << "Parallel build requires incremental build!" << std::endl;
         return "";
     }
+#else
+    bool parallelBuild = false;
+#endif
 
     std::vector<std::string> cmd;
     cmd.push_back(buildConfig->getStringOrDefault("compiler", "clang")->getValue());

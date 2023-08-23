@@ -4,13 +4,11 @@ std::vector<std::string> get_presets() {
     std::vector<std::string> presets;
     presets.push_back("clang-c");
     presets.push_back("gcc-c");
-    presets.push_back("tcc-c");
     presets.push_back("clang-cpp");
     presets.push_back("gcc-cpp");
     presets.push_back("sclc-scale");
     presets.push_back("clang-objc");
     presets.push_back("gcc-objc");
-    presets.push_back("swiftc-swift");
     return presets;
 }
 
@@ -47,10 +45,6 @@ void generate_generic_main(std::string lang) {
         mainFile << "    }\n";
         mainFile << "    return 0;\n";
         mainFile << "}" << std::endl;
-        mainFile.close();
-    } else if (lang == "swift") {
-        std::ofstream mainFile(sourceDir + std::filesystem::path::preferred_separator + "main.swift");
-        mainFile << "print(\"Hello, World!\")" << std::endl;
         mainFile.close();
     } else {
         DRAGON_ERR << "Unknown language: " << lang << std::endl;
@@ -117,15 +111,6 @@ void load_preset(std::string& identifier) {
             DRAGON_ERR << "Unsupported language with clang: " << lang << std::endl;
             exit(1);
         }
-    } else if (compilerArgument == "tcc") {
-        compiler = "tcc";
-        if (lang == "c") {
-            customUnits.push_back("main.c");
-            generate_generic_main("c");
-        } else {
-            DRAGON_ERR << "Unsupported language with tcc: " << lang << std::endl;
-            exit(1);
-        }
     } else if (compilerArgument == "sclc") {
         compiler = "sclc";
         if (lang == "scale") {
@@ -134,15 +119,6 @@ void load_preset(std::string& identifier) {
             generate_generic_main("scale");
         } else {
             DRAGON_ERR << "Unsupported language with sclc: " << lang << std::endl;
-            exit(1);
-        }
-    } else if (compilerArgument == "swiftc") {
-        compiler = "swiftc";
-        if (lang == "swift") {
-            customUnits.push_back("main.swift");
-            generate_generic_main("swift");
-        } else {
-            DRAGON_ERR << "Unsupported language with swiftc: " << lang << std::endl;
             exit(1);
         }
     } else {

@@ -3,15 +3,16 @@
 Simple build system for C and C++.
 
 ## Build
+### macOS and Linux
 
 ```bash
-$ make compile
+$ sh build.sh
 ```
 
-After that, you should be able to do the following to rebuild the project:
+### Windows
 
-```bash
-$ ./build/dragon build
+```cmd
+> build.bat
 ```
 
 ## Language Support
@@ -21,7 +22,7 @@ These Languages are known to work:
 - C
 - C++
 - [Scale](https://www.github.com/StonkDragon/Scale)
-- Swift (experimental)
+- Objective-C
 
 ## License
 

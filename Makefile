@@ -1,8 +1,0 @@
-CFLAGS=-Wall -Wextra
-EXE=build/dragon
-CC=clang++
-SRC=src/dragon.cpp src/DragonConfig.cpp src/commands/build.cpp src/commands/clean.cpp src/commands/init.cpp src/commands/presets.cpp src/commands/run.cpp src/commands/package.cpp
-
-compile:
-	mkdir -p build
-	$(CC) $(CFLAGS) $(SRC) -o $(EXE) -std=gnu++17
