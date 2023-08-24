@@ -1,5 +1,15 @@
 #include <regex>
 
+#if defined(_WIN32)
+#define OS_NAME "windows"
+#elif defined(__APPLE__)
+#define OS_NAME "macos"
+#elif defined(__linux__)
+#define OS_NAME "linux"
+#else
+#define OS_NAME "unknown"
+#endif
+
 #include "DragonConfig.hpp"
 
 using namespace std;
@@ -453,6 +463,7 @@ CompoundEntry* ConfigParser::parseCompound(std::string& data, int* i) {
         resetCurrentAfter = true;
     }
     char c = data.at(++(*i));
+    bool lastConditionWasTrue = false;
     while (c != '}') {
         std::string key = "";
         for (; isValidIdentifier(c); c = data.at(++(*i))) {
@@ -477,7 +488,7 @@ CompoundEntry* ConfigParser::parseCompound(std::string& data, int* i) {
             }
             entry->setKey(key);
             compound->entries.push_back(entry);
-        } else {
+        } else if (c == '"') {
             StringEntry* entry = this->parseString(data, i);
             if (!entry) {
                 if (resetCurrentAfter)
@@ -486,6 +497,120 @@ CompoundEntry* ConfigParser::parseCompound(std::string& data, int* i) {
             }
             entry->setKey(key);
             compound->entries.push_back(entry);
+        } else {
+            const std::string& str = data.substr(*i);
+            auto strstarts = [](const std::string& str, const std::string& prefix) {
+                return str.substr(0, prefix.size()) == prefix;
+            };
+            if (strstarts(str, "if<")) {
+                *i += 3;
+                std::string what = data.substr(*i, data.find_first_of('>') - *i);
+                *i += what.size();
+                if (data.at(++(*i)) != '(') {
+                    DRAGON_ERR << "Invalid if<?> statement: expected '(' after 'if<?>'" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                std::string condition = data.substr(++(*i), data.find_first_of(')') - *i);
+                *i += condition.size() + 1;
+                if (data.at(*i) != '{') {
+                    DRAGON_ERR << "Invalid if<?> statement: expected '{' after condition" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                *i += 1;
+                ConfigEntry* entry = nullptr;
+                if (data.at(*i) == '{') {
+                    entry = this->parseCompound(data, i);
+                } else if (data.at(*i) == '[') {
+                    entry = this->parseList(data, i);
+                } else if (data.at(*i) == '"') {
+                    entry = this->parseString(data, i);
+                } else {
+                    DRAGON_ERR << "Invalid if<?> statement: expected '{', '[' or '\"' after '{'" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                auto evaluate = [](const std::string& what, const std::string& is) {
+                    if (what == "os") {
+                        return is == OS_NAME;
+                    } else {
+                        DRAGON_ERR << "Invalid if<?> statement: unknown identifier '" << what << "'" << std::endl;
+                        return false;
+                    }
+                };
+                if (!entry) {
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                if (evaluate(what, condition)) {
+                    entry->setKey(key);
+                    compound->entries.push_back(entry);
+                    lastConditionWasTrue = true;
+                }
+                if (data.at(*i) != ';') {
+                    DRAGON_ERR << "Invalid if<?> statement: expected ';' after entry" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                *i += 2;
+
+                const std::string& elseStatement = data.substr(*i);
+                if (!strstarts(elseStatement, "else{")) {
+                    DRAGON_ERR << "Invalid if<?> statement: expected 'else' after entry" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                *i += 4;
+                if (data.at(*i) != '{') {
+                    DRAGON_ERR << "Invalid else statement: expected '{' after 'else'" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                *i += 1;
+                entry = nullptr;
+                if (data.at(*i) == '{') {
+                    entry = this->parseCompound(data, i);
+                } else if (data.at(*i) == '[') {
+                    entry = this->parseList(data, i);
+                } else if (data.at(*i) == '"') {
+                    entry = this->parseString(data, i);
+                } else {
+                    DRAGON_ERR << "Invalid else statement: expected '{', '[' or '\"' after '{'" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                if (!entry) {
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                if (!lastConditionWasTrue) {
+                    entry->setKey(key);
+                    compound->entries.push_back(entry);
+                }
+                lastConditionWasTrue = false;
+                if (data.at(*i) != ';') {
+                    DRAGON_ERR << "Invalid else statement: expected ';' after entry" << std::endl;
+                    if (resetCurrentAfter)
+                        currentParsingRoot = nullptr;
+                    return nullptr;
+                }
+                *i += 2;
+            } else {
+                DRAGON_ERR << "Invalid entry: '" << key << "'" << std::endl;
+                if (resetCurrentAfter)
+                    currentParsingRoot = nullptr;
+                return nullptr;
+            }
         }
         c = data.at(++(*i));
     }

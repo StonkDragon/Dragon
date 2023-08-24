@@ -8,6 +8,9 @@
 #include <fstream>
 #include <sstream>
 #include <regex>
+#include <thread>
+#include <functional>
+#include <chrono>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>

@@ -8,14 +8,8 @@ std::string vecToString(std::vector<std::string>& vec) {
     return ret;
 }
 
-void build(std::vector<std::string> cmd) {
+void build(std::vector<std::string>& cmd) {
     run_with_args(cmd.front(), cmd);
-}
-
-void buildThreaded(std::vector<std::string>* cmd) {
-    DRAGON_LOG << "Started building: " << cmd->at(cmd->size() - 2) << std::endl;
-    build(*cmd);
-    DRAGON_LOG << "Finished building: " << cmd->at(cmd->size() - 2) << std::endl;
 }
 
 std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
@@ -53,15 +47,11 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     }
     
     bool incrementalBuild = buildConfig->getStringOrDefault("incrementalBuild", "false")->getValue() == "true";
-#if !defined(_WIN32)
     bool parallelBuild = parallel && buildConfig->getStringOrDefault("parallelBuild", "false")->getValue() == "true";
     if (parallelBuild && !incrementalBuild) {
         DRAGON_ERR << "Parallel build requires incremental build!" << std::endl;
         return "";
     }
-#else
-    bool parallelBuild = false;
-#endif
 
     std::vector<std::string> cmd;
     cmd.push_back(buildConfig->getStringOrDefault("compiler", "clang")->getValue());
@@ -247,9 +237,7 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
     size_t sourceDirPrefixLen =
         (buildConfig->getStringOrDefault("sourceDir", "src")->getValue() + std::filesystem::path::preferred_separator).size();
 
-#if !defined(_WIN32)
-    std::vector<pthread_t> threads;
-#endif
+    std::vector<std::thread> threads;
 
     std::string cachedBuildConfig =
         buildConfig->getStringOrDefault("outputDir", "build")->getValue() +
@@ -347,18 +335,17 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
             }
         }
 
-#if !defined(_WIN32)
-        pthread_t thread;
-        pthread_create(&thread, NULL, (void*(*)(void*)) &buildThreaded, tmp);
+        std::thread thread([](std::vector<std::string>* tmp){
+            DRAGON_LOG << "Started building: " << tmp->at(tmp->size() - 2) << std::endl;
+            build(*tmp);
+            DRAGON_LOG << "Finished building: " << tmp->at(tmp->size() - 2) << std::endl;
+            delete tmp;
+        }, tmp);
         if (parallelBuild) {
-            threads.push_back(thread);
+            threads.push_back(std::move(thread));
         } else {
-            pthread_join(thread, NULL);
+            thread.join();
         }
-#else
-#warning "Parallel build not supported on Windows!"
-        buildThreaded(tmp);
-#endif
     }
 
     cmd.push_back(buildConfig->getStringOrDefault("outFilePrefix", "-o")->getValue());
@@ -375,11 +362,9 @@ std::string build_from_config(DragonConfig::CompoundEntry* buildConfig) {
         }
     }
 
-#if !defined(_WIN32)
     for (auto&& thread : threads) {
-        pthread_join(thread, NULL);
+        thread.join();
     }
-#endif
 
     DRAGON_LOG << "Running build command: " << vecToString(cmd) << std::endl;
 
